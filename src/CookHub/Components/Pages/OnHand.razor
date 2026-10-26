@@ -1,0 +1,108 @@
+@page "/on-hand"
+@inject PantryService Pantry
+@inject LookupService Lookups
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<PageTitle>On hand · CookHub</PageTitle>
+
+<MudText Typo="Typo.h4">Ingredients on hand</MudText>
+<MudText Class="mud-text-secondary mb-4">
+    Everything here is assumed to be in your kitchen, so it's left off the shopping list. Remove anything you've run out of.
+</MudText>
+
+<MudGrid Spacing="2" Class="mb-4">
+    <MudItem xs="12" md="6">
+        <LookupAutocomplete ClearAfterSelect="true" OnSelected="AddAsync" Search="Lookups.SearchIngredientsAsync" Create="Lookups.GetOrCreateIngredientAsync"
+                            Label="Add an ingredient you have" Placeholder="Search ingredients" Variant="Variant.Outlined" Margin="Margin.Dense" />
+    </MudItem>
+    <MudItem xs="12" md="6">
+        <MudTextField @bind-Value="_filter" Immediate="true" Label="Filter this list" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.FilterList" Clearable="true" />
+    </MudItem>
+</MudGrid>
+
+@if (_items is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_items.Count == 0)
+{
+    <MudPaper Outlined="true" Class="pa-8 d-flex flex-column align-center gap-2">
+        <MudIcon Icon="@Icons.Material.Filled.Kitchen" Size="Size.Large" Color="Color.Secondary" />
+        <MudText>Your on-hand list is empty.</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">Add ingredients above, or tick them off on a recipe or the shopping list.</MudText>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Outlined="true" Class="pa-4">
+        <div class="d-flex align-center mb-2">
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">@_items.Count ingredient@(_items.Count == 1 ? "" : "s")</MudText>
+            <MudSpacer />
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ClearAsync">Remove all</MudButton>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (var item in FilteredItems)
+            {
+                <MudChip T="string" @key="item.Id" Color="Color.Success" Variant="Variant.Outlined" OnClose="@(() => RemoveAsync(item))">@item.Name</MudChip>
+            }
+        </div>
+        @if (!FilteredItems.Any())
+        {
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">Nothing matches "@_filter".</MudText>
+        }
+    </MudPaper>
+}
+
+@code {
+    private List<LookupItem>? _items;
+    private string? _filter;
+
+    private IEnumerable<LookupItem> FilteredItems => string.IsNullOrWhiteSpace(_filter)
+        ? _items!
+        : _items!.Where(i => i.Name.Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _items = (await Pantry.GetOnHandAsync()).ToList();
+
+    private async Task AddAsync(LookupItem ingredient)
+    {
+        await Pantry.SetOnHandAsync(ingredient.Id, true);
+        await LoadAsync();
+    }
+
+    private async Task RemoveAsync(LookupItem ingredient)
+    {
+        await Pantry.SetOnHandAsync(ingredient.Id, false);
+        _items!.Remove(ingredient);
+        Snackbar.Add($"Removed {ingredient.Name}.", Severity.Normal, config =>
+        {
+            config.Action = "Undo";
+            config.ActionColor = Color.Primary;
+            config.OnClick = async _ =>
+            {
+                await Pantry.SetOnHandAsync(ingredient.Id, true);
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            };
+        });
+    }
+
+    private async Task ClearAsync()
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            "Remove all",
+            "Remove every ingredient from your on-hand list? They'll all show up on shopping lists again.",
+            yesText: "Remove all",
+            cancelText: "Cancel");
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await Pantry.ClearAsync();
+        await LoadAsync();
+    }
+}

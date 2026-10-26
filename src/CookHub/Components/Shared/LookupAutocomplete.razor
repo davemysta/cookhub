@@ -1,0 +1,121 @@
+@* Look up an existing item by name, or offer to add the typed text as a new one. *@
+
+<MudAutocomplete T="LookupItem"
+                 @ref="_autocomplete"
+                 Value="Value"
+                 ValueChanged="OnValueChanged"
+                 SearchFunc="SearchAsync"
+                 ToStringFunc="@(item => item?.Name)"
+                 Label="@Label"
+                 Placeholder="@Placeholder"
+                 HelperText="@HelperText"
+                 Variant="Variant"
+                 Margin="Margin"
+                 Dense="Dense"
+                 Required="Required"
+                 RequiredError="@RequiredError"
+                 Disabled="Disabled"
+                 DebounceInterval="250"
+                 ResetValueOnEmptyText="true"
+                 CoerceText="true"
+                 SelectValueOnTab="true"
+                 MaxItems="null"
+                 AdornmentIcon="@Icons.Material.Filled.Search"
+                 Class="@Class">
+    <ItemTemplate Context="item">
+        @if (item.Id == NewItemId)
+        {
+            <div class="d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" />
+                <span>Add "<b>@item.Name</b>"</span>
+            </div>
+        }
+        else
+        {
+            @item.Name
+        }
+    </ItemTemplate>
+    <NoItemsTemplate>
+        <MudText Typo="Typo.body2" Class="px-4 py-2">Start typing to search.</MudText>
+    </NoItemsTemplate>
+</MudAutocomplete>
+
+@code {
+    // Marks the "Add ..." choice in the results; it isn't a real id.
+    private const int NewItemId = -1;
+
+    private MudAutocomplete<LookupItem>? _autocomplete;
+    private bool _clearing;
+
+    [Parameter] public LookupItem? Value { get; set; }
+    [Parameter] public EventCallback<LookupItem?> ValueChanged { get; set; }
+
+    // Fires with each picked item when ClearAfterSelect is on, e.g. to add a chip.
+    [Parameter] public EventCallback<LookupItem> OnSelected { get; set; }
+
+    [Parameter, EditorRequired] public Func<string?, CancellationToken, Task<IReadOnlyList<LookupItem>>> Search { get; set; } = default!;
+
+    // Adds a new item to the database. Leave null to only allow existing items.
+    [Parameter] public Func<string, Task<LookupItem>>? Create { get; set; }
+
+    [Parameter] public bool ClearAfterSelect { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? HelperText { get; set; }
+    [Parameter] public Variant Variant { get; set; } = Variant.Text;
+    [Parameter] public Margin Margin { get; set; } = Margin.None;
+    [Parameter] public bool Dense { get; set; }
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public string RequiredError { get; set; } = "Required";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? Class { get; set; }
+
+    private async Task<IEnumerable<LookupItem>> SearchAsync(string? text, CancellationToken cancellationToken)
+    {
+        var results = await Search(text, cancellationToken);
+        var typed = LookupService.CleanName(text ?? "");
+        var exactMatch = results.Any(r => string.Equals(r.Name, typed, StringComparison.OrdinalIgnoreCase));
+        if (Create is null || typed.Length == 0 || exactMatch)
+        {
+            return results;
+        }
+
+        return [new LookupItem(NewItemId, typed), .. results];
+    }
+
+    private async Task OnValueChanged(LookupItem? item)
+    {
+        if (_clearing)
+        {
+            return;
+        }
+
+        if (item is { Id: NewItemId } && Create is not null)
+        {
+            item = await Create(item.Name);
+        }
+
+        if (item is not null)
+        {
+            await OnSelected.InvokeAsync(item);
+        }
+
+        if (ClearAfterSelect && item is not null && _autocomplete is not null)
+        {
+            _clearing = true;
+            try
+            {
+                await _autocomplete.ClearAsync();
+            }
+            finally
+            {
+                _clearing = false;
+            }
+
+            return;
+        }
+
+        Value = item;
+        await ValueChanged.InvokeAsync(item);
+    }
+}

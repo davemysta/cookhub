@@ -1,0 +1,17 @@
+@inherits LayoutComponentBase
+@layout CookHub.Components.Layout.MainLayout
+
+<MudText Typo="Typo.h4" GutterBottom="true">Account</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="4">
+        <MudPaper Outlined="true">
+            <ManageNavMenu />
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="8">
+        <MudPaper Outlined="true" Class="pa-6">
+            @Body
+        </MudPaper>
+    </MudItem>
+</MudGrid>

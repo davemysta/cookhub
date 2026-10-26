@@ -1,0 +1,20 @@
+@* "3/5 on hand" for a recipe, green when everything is on hand. *@
+
+<MudTooltip Text="@Tooltip">
+    <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Kitchen" Variant="Variant.Text" Color="@ChipColor">
+        @OnHand/@Total on hand
+    </MudChip>
+</MudTooltip>
+
+@code {
+    [Parameter, EditorRequired] public int OnHand { get; set; }
+    [Parameter, EditorRequired] public int Total { get; set; }
+
+    private int Missing => Total - OnHand;
+
+    private Color ChipColor => Missing == 0 ? Color.Success : OnHand > 0 ? Color.Warning : Color.Default;
+
+    private string Tooltip => Missing == 0
+        ? "You have every ingredient"
+        : $"{Missing} ingredient{(Missing == 1 ? "" : "s")} to buy";
+}

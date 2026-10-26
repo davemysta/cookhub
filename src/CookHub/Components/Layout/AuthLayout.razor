@@ -1,0 +1,16 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="AppTheme.Theme" />
+<MudLayout>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="d-flex flex-column justify-center py-8" Style="min-height: 100vh;">
+            <div class="d-flex align-center justify-center gap-2 mb-6">
+                <MudIcon Icon="@Icons.Material.Filled.SoupKitchen" Color="Color.Primary" Size="Size.Large" />
+                <MudText Typo="Typo.h4" Color="Color.Primary">CookHub</MudText>
+            </div>
+            <MudPaper Elevation="2" Class="pa-6 pa-sm-8">
+                @Body
+            </MudPaper>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>

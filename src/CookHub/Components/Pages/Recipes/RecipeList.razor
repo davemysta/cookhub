@@ -1,0 +1,273 @@
+@page "/recipes"
+@inject RecipeService Recipes
+@inject LookupService Lookups
+@inject FamilyService Family
+@inject ICurrentUser CurrentUser
+@inject RecipeListState State
+@inject NavigationManager Navigation
+@inject IDialogService Dialogs
+
+<PageTitle>Recipes · CookHub</PageTitle>
+
+<div class="d-flex align-center flex-wrap gap-2 mb-4">
+    <MudText Typo="Typo.h4">Recipes</MudText>
+    <MudSpacer />
+    <MudButton Href="recipes/new" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add">New recipe</MudButton>
+</div>
+
+<MudPaper Outlined="true" Class="pa-4 mb-4">
+    <MudGrid Spacing="2">
+        <MudItem xs="12">
+            <MudTextField T="string" Value="Query.Search" ValueChanged="OnSearchChanged" DebounceInterval="300"
+                          Placeholder="Search titles, descriptions, tags and ingredients" Variant="Variant.Outlined"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="int" Label="Tags" MultiSelection="true" SelectedValues="Query.TagIds" SelectedValuesChanged="OnTagsChanged"
+                       ToStringFunc="@(id => _tags.FirstOrDefault(t => t.Id == id)?.Name ?? "")"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Disabled="_tags.Count == 0"
+                       HelperText="@(_tags.Count == 0 ? "No tags yet" : "Recipes must have every selected tag")">
+                @foreach (var tag in _tags)
+                {
+                    <MudSelectItem T="int" Value="tag.Id">@tag.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="Liked by" Value="Query.LikedBy.Key" ValueChanged="OnLikedByChanged"
+                       Variant="Variant.Outlined" Margin="Margin.Dense">
+                <MudSelectItem Value="@("anyone")">Anyone (no filter)</MudSelectItem>
+                <MudSelectItem Value="@("everyone")">Everyone (all of us)</MudSelectItem>
+                @foreach (var person in _people)
+                {
+                    var key = person.IsMe ? "me" : $"member:{person.FamilyMemberId}";
+                    <MudSelectItem Value="key">@(person.IsMe ? $"{person.Name} (me)" : person.Name)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="RecipeSort" Label="Sort by" Value="Query.Sort" ValueChanged="OnSortChanged"
+                       Variant="Variant.Outlined" Margin="Margin.Dense">
+                <MudSelectItem Value="RecipeSort.Title">Title (A–Z)</MudSelectItem>
+                <MudSelectItem Value="RecipeSort.MostOnHand">Most ingredients on hand</MudSelectItem>
+                <MudSelectItem Value="RecipeSort.Newest">Newest first</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3" Class="d-flex align-center justify-end">
+            <MudToggleGroup T="RecipeListView" Value="State.View" ValueChanged="@(v => State.View = v)" Color="Color.Primary" Size="Size.Small" Outlined="true">
+                <MudToggleItem Value="RecipeListView.Cards" title="Card view">
+                    <MudIcon Icon="@Icons.Material.Filled.GridView" />
+                </MudToggleItem>
+                <MudToggleItem Value="RecipeListView.List" title="List view">
+                    <MudIcon Icon="@Icons.Material.Filled.ViewList" />
+                </MudToggleItem>
+            </MudToggleGroup>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_result is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_result.TotalCount == 0)
+{
+    <MudPaper Outlined="true" Class="pa-8 d-flex flex-column align-center gap-2">
+        <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Large" Color="Color.Secondary" />
+        @if (HasFilters)
+        {
+            <MudText>No recipes match these filters.</MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="ClearFiltersAsync">Clear filters</MudButton>
+        }
+        else
+        {
+            <MudText>You haven't added any recipes yet.</MudText>
+            <MudButton Href="recipes/new" Variant="Variant.Filled" Color="Color.Primary">Add your first recipe</MudButton>
+        }
+    </MudPaper>
+}
+else
+{
+    <MudText Typo="Typo.body2" Class="mb-2 mud-text-secondary">
+        @RangeText
+    </MudText>
+
+    @if (State.View == RecipeListView.Cards)
+    {
+        <MudGrid Spacing="3">
+            @foreach (var recipe in _result.Items)
+            {
+                <MudItem xs="12" sm="6" md="4" lg="3">
+                    <MudCard Outlined="true" Class="recipe-card">
+                        <a href="@($"recipes/{recipe.Id}")">
+                            <img src="@recipe.ImageUrl" alt="" class="recipe-card-image" loading="lazy" />
+                        </a>
+                        <MudCardContent>
+                            <MudLink Href="@($"recipes/{recipe.Id}")" Typo="Typo.h6" Color="Color.Inherit" Underline="Underline.Hover">@recipe.Title</MudLink>
+                            @if (!string.IsNullOrEmpty(recipe.Description))
+                            {
+                                <MudText Typo="Typo.body2" Class="line-clamp-2 mud-text-secondary mt-1">@recipe.Description</MudText>
+                            }
+                            <div class="d-flex flex-wrap gap-1 mt-2">
+                                <OnHandChip OnHand="recipe.OnHandCount" Total="recipe.IngredientCount" />
+                                @foreach (var tag in recipe.Tags)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@tag</MudChip>
+                                }
+                            </div>
+                            @if (recipe.LikedBy.Count > 0)
+                            {
+                                <div class="d-flex align-center gap-1 mt-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.Favorite" Size="Size.Small" Color="Color.Error" />
+                                    <MudText Typo="Typo.caption">@string.Join(", ", recipe.LikedBy)</MudText>
+                                </div>
+                            }
+                        </MudCardContent>
+                        <MudCardActions>
+                            <MudButton Href="@($"recipes/{recipe.Id}")" Variant="Variant.Text" Color="Color.Primary">View</MudButton>
+                            <MudSpacer />
+                            <MudTooltip Text="Add to meal plan">
+                                <MudIconButton Icon="@Icons.Material.Filled.EventAvailable" aria-label="Add to meal plan" OnClick="@(() => AddToPlanAsync(recipe))" />
+                            </MudTooltip>
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+    else
+    {
+        <MudTable T="RecipeSummary" Items="_result.Items" Hover="true" Outlined="true" Elevation="0" Dense="true"
+                  OnRowClick="@(e => Navigation.NavigateTo($"recipes/{e.Item!.Id}"))" RowStyle="cursor: pointer;">
+            <HeaderContent>
+                <MudTh Style="width: 72px;"></MudTh>
+                <MudTh>Recipe</MudTh>
+                <MudTh>Tags</MudTh>
+                <MudTh>On hand</MudTh>
+                <MudTh>Liked by</MudTh>
+                <MudTh Style="width: 56px;"></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd><img src="@context.ImageUrl" alt="" class="recipe-thumb" loading="lazy" /></MudTd>
+                <MudTd DataLabel="Recipe">
+                    <MudText Typo="Typo.subtitle1">@context.Title</MudText>
+                    @if (!string.IsNullOrEmpty(context.Description))
+                    {
+                        <MudText Typo="Typo.body2" Class="line-clamp-2 mud-text-secondary">@context.Description</MudText>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Tags">
+                    @foreach (var tag in context.Tags)
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@tag</MudChip>
+                    }
+                </MudTd>
+                <MudTd DataLabel="On hand"><OnHandChip OnHand="context.OnHandCount" Total="context.IngredientCount" /></MudTd>
+                <MudTd DataLabel="Liked by">@string.Join(", ", context.LikedBy)</MudTd>
+                <MudTd>
+                    @* Keep the button click from also opening the recipe through the row click. *@
+                    <div @onclick:stopPropagation="true">
+                        <MudTooltip Text="Add to meal plan">
+                            <MudIconButton Icon="@Icons.Material.Filled.EventAvailable" aria-label="Add to meal plan" Size="Size.Small"
+                                           OnClick="@(() => AddToPlanAsync(context))" />
+                        </MudTooltip>
+                    </div>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+
+    @if (_result.PageCount > 1)
+    {
+        <div class="d-flex justify-center mt-6">
+            <MudPagination Count="_result.PageCount" Selected="_result.Page" SelectedChanged="OnPageChanged" Color="Color.Primary" ShowFirstButton="true" ShowLastButton="true" />
+        </div>
+    }
+}
+
+@code {
+    private PagedResult<RecipeSummary>? _result;
+    private IReadOnlyList<LookupItem> _tags = [];
+    private IReadOnlyList<Person> _people = [];
+
+    private RecipeQuery Query => State.Query;
+
+    private bool HasFilters => !string.IsNullOrWhiteSpace(Query.Search) || Query.TagIds.Count > 0 || Query.LikedBy.Kind != LikedByFilterKind.Anyone;
+
+    private string RangeText
+    {
+        get
+        {
+            var first = (_result!.Page - 1) * _result.PageSize + 1;
+            var last = first + _result.Items.Count - 1;
+            var noun = _result.TotalCount == 1 ? "recipe" : "recipes";
+            return _result.PageCount > 1 ? $"{first}–{last} of {_result.TotalCount} {noun}" : $"{_result.TotalCount} {noun}";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _tags = await Lookups.GetTagsInUseAsync(await CurrentUser.GetUserIdAsync());
+        _people = await Family.GetPeopleAsync();
+
+        // Drop filters that point at tags or family members that no longer exist.
+        Query.TagIds = Query.TagIds.Where(id => _tags.Any(t => t.Id == id)).ToList();
+        if (Query.LikedBy.Kind == LikedByFilterKind.FamilyMember && _people.All(p => p.FamilyMemberId != Query.LikedBy.FamilyMemberId))
+        {
+            Query.LikedBy = LikedByFilter.Anyone;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _result = await Recipes.SearchAsync(Query);
+        Query.Page = _result.Page;
+    }
+
+    private Task OnSearchChanged(string? text)
+    {
+        Query.Search = text;
+        Query.Page = 1;
+        return LoadAsync();
+    }
+
+    private Task OnTagsChanged(IEnumerable<int>? tagIds)
+    {
+        Query.TagIds = tagIds?.ToList() ?? [];
+        Query.Page = 1;
+        return LoadAsync();
+    }
+
+    private Task OnLikedByChanged(string key)
+    {
+        Query.LikedBy = LikedByFilter.FromKey(key);
+        Query.Page = 1;
+        return LoadAsync();
+    }
+
+    private Task OnSortChanged(RecipeSort sort)
+    {
+        Query.Sort = sort;
+        Query.Page = 1;
+        return LoadAsync();
+    }
+
+    private Task OnPageChanged(int page)
+    {
+        Query.Page = page;
+        return LoadAsync();
+    }
+
+    private Task ClearFiltersAsync()
+    {
+        Query.Search = null;
+        Query.TagIds = [];
+        Query.LikedBy = LikedByFilter.Anyone;
+        Query.Page = 1;
+        return LoadAsync();
+    }
+
+    private Task AddToPlanAsync(RecipeSummary recipe) => AddToMealPlanDialog.ShowAsync(Dialogs, recipe.Id, recipe.Title);
+}

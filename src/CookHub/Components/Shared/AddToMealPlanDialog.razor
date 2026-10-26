@@ -1,0 +1,91 @@
+@inject MealPlanService MealPlans
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Add to meal plan</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Class="mb-4"><b>@RecipeTitle</b></MudText>
+        <MudSelect T="DateOnly" @bind-Value="_weekStart" Label="Week" Variant="Variant.Outlined" Class="mb-4">
+            @foreach (var week in _weeks)
+            {
+                <MudSelectItem Value="week">@WeekLabel(week)</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSelect T="DayOfWeek?" @bind-Value="_day" Label="Day (optional)" Variant="Variant.Outlined">
+            <MudSelectItem Value="@((DayOfWeek?)null)">Any day</MudSelectItem>
+            @foreach (var day in Week.Days)
+            {
+                <MudSelectItem Value="@((DayOfWeek?)day)">@day</MudSelectItem>
+            }
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_saving" OnClick="AddAsync">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private readonly List<DateOnly> _weeks = Enumerable.Range(0, 6).Select(i => Week.Current.AddDays(7 * i)).ToList();
+    private DateOnly _weekStart;
+    private DayOfWeek? _day;
+    private bool _saving;
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public int RecipeId { get; set; }
+    [Parameter] public string RecipeTitle { get; set; } = "";
+    [Parameter] public DateOnly? InitialWeek { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _weekStart = Week.StartOf(InitialWeek ?? Week.Current);
+        if (!_weeks.Contains(_weekStart))
+        {
+            _weeks.Insert(0, _weekStart);
+        }
+    }
+
+    private static string WeekLabel(DateOnly week)
+    {
+        var label = Week.Label(week);
+        if (week == Week.Current)
+        {
+            return $"This week ({label})";
+        }
+
+        return week == Week.Current.AddDays(7) ? $"Next week ({label})" : label;
+    }
+
+    private async Task AddAsync()
+    {
+        _saving = true;
+        try
+        {
+            await MealPlans.AddAsync(RecipeId, _weekStart, _day);
+            Snackbar.Add($"Added {RecipeTitle} to the meal plan for {Week.Label(_weekStart)}.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(_weekStart));
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    public static Task<IDialogReference> ShowAsync(IDialogService dialogs, int recipeId, string recipeTitle, DateOnly? initialWeek = null) =>
+        dialogs.ShowAsync<AddToMealPlanDialog>(
+            "Add to meal plan",
+            new DialogParameters<AddToMealPlanDialog>
+            {
+                { d => d.RecipeId, recipeId },
+                { d => d.RecipeTitle, recipeTitle },
+                { d => d.InitialWeek, initialWeek },
+            },
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseButton = true });
+}
