@@ -1,0 +1,116 @@
+@page "/meal-plan"
+@inject MealPlanService MealPlans
+@inject RecipeService Recipes
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Meal plan · CookHub</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-2">Meal plan</MudText>
+
+<div class="d-flex align-center flex-wrap gap-2 mb-4">
+    <WeekNavigator WeekStart="_weekStart" WeekStartChanged="ChangeWeek" />
+    <MudSpacer />
+    <MudButton Href="@WeekQuery.Url("shopping-list", _weekStart)" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ShoppingCart">
+        Shopping list@(MissingCount > 0 ? $" ({MissingCount})" : "")
+    </MudButton>
+</div>
+
+<MudPaper Outlined="true" Class="pa-4 mb-4">
+    <LookupAutocomplete ClearAfterSelect="true" OnSelected="AddRecipeAsync" Search="Recipes.SearchTitlesAsync"
+                        Label="Add a recipe to this week" Placeholder="Search your recipes" Variant="Variant.Outlined" Margin="Margin.Dense" />
+</MudPaper>
+
+@if (_items is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_items.Count == 0)
+{
+    <MudPaper Outlined="true" Class="pa-8 d-flex flex-column align-center gap-2">
+        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Size="Size.Large" Color="Color.Secondary" />
+        <MudText>Nothing planned for this week yet.</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">Search above, or browse <MudLink Href="recipes" Typo="Typo.body2">your recipes</MudLink> and choose "Add to meal plan".</MudText>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Outlined="true">
+        <MudList T="string" Dense="false" Padding="false">
+            @foreach (var item in _items)
+            {
+                <MudListItem T="string" @key="item.EntryId">
+                    <div class="d-flex align-center flex-wrap gap-3">
+                        <img src="@item.ImageUrl" alt="" class="recipe-thumb" />
+                        <div class="flex-grow-1" style="min-width: 10rem;">
+                            <MudLink Href="@($"recipes/{item.RecipeId}")" Typo="Typo.subtitle1" Color="Color.Inherit">@item.Title</MudLink>
+                            <div><OnHandChip OnHand="item.OnHandCount" Total="item.IngredientCount" /></div>
+                        </div>
+                        <MudSelect T="DayOfWeek?" Value="item.Day" ValueChanged="@(day => SetDayAsync(item, day))" Label="Day"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 11rem;" Dense="true">
+                            <MudSelectItem Value="@((DayOfWeek?)null)">Any day</MudSelectItem>
+                            @foreach (var day in Week.Days)
+                            {
+                                <MudSelectItem Value="@((DayOfWeek?)day)">@_weekStart.AddDays(Week.DayIndex(day)).ToString("ddd MMM d")</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudTooltip Text="Remove from this week">
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" aria-label="Remove from this week" OnClick="@(() => RemoveAsync(item))" />
+                        </MudTooltip>
+                    </div>
+                </MudListItem>
+                <MudDivider />
+            }
+        </MudList>
+    </MudPaper>
+}
+
+@code {
+    private DateOnly _weekStart = Week.Current;
+    private IReadOnlyList<MealPlanItem>? _items;
+
+    [SupplyParameterFromQuery(Name = "week")]
+    public string? WeekParameter { get; set; }
+
+    private int MissingCount => _items?.Sum(i => i.MissingCount) ?? 0;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _weekStart = WeekQuery.Parse(WeekParameter);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _items = await MealPlans.GetWeekAsync(_weekStart);
+
+    private void ChangeWeek(DateOnly weekStart) => Navigation.NavigateTo(WeekQuery.Url("meal-plan", weekStart));
+
+    private async Task AddRecipeAsync(LookupItem recipe)
+    {
+        await MealPlans.AddAsync(recipe.Id, _weekStart);
+        Snackbar.Add($"Added {recipe.Name}.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task SetDayAsync(MealPlanItem item, DayOfWeek? day)
+    {
+        await MealPlans.SetDayAsync(item.EntryId, day);
+        await LoadAsync();
+    }
+
+    private async Task RemoveAsync(MealPlanItem item)
+    {
+        await MealPlans.RemoveAsync(item.EntryId);
+        await LoadAsync();
+        Snackbar.Add($"Removed {item.Title} from this week.", Severity.Info, config =>
+        {
+            config.Action = "Undo";
+            config.ActionColor = Color.Primary;
+            config.OnClick = async _ =>
+            {
+                await MealPlans.AddAsync(item.RecipeId, _weekStart, item.Day);
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            };
+        });
+    }
+}

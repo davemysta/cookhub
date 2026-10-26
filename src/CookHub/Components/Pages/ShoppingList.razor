@@ -1,0 +1,133 @@
+@page "/shopping-list"
+@inject MealPlanService MealPlans
+@inject PantryService Pantry
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Shopping list · CookHub</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-2">Shopping list</MudText>
+
+<div class="d-flex align-center flex-wrap gap-2 mb-4">
+    <WeekNavigator WeekStart="_weekStart" WeekStartChanged="ChangeWeek" />
+    <MudSpacer />
+    <MudButton Href="@WeekQuery.Url("meal-plan", _weekStart)" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.CalendarMonth">Meal plan</MudButton>
+</div>
+
+<MudPaper Outlined="true" Class="pa-3 mb-4 d-flex align-center flex-wrap gap-4">
+    <MudSwitch T="bool" @bind-Value="_groupByRecipe" Color="Color.Primary" Label="Group by recipe" />
+    <MudSwitch T="bool" @bind-Value="_showOnHand" Color="Color.Primary" Label="Show ingredients I have" />
+    <MudSpacer />
+    @if (_lines is not null)
+    {
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+            @ToBuyCount to buy · @OnHandCount on hand
+        </MudText>
+    }
+</MudPaper>
+
+@if (_lines is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_lines.Count == 0)
+{
+    <MudPaper Outlined="true" Class="pa-8 d-flex flex-column align-center gap-2">
+        <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Large" Color="Color.Secondary" />
+        <MudText>No recipes are planned for this week, so there's nothing to buy.</MudText>
+        <MudButton Href="@WeekQuery.Url("meal-plan", _weekStart)" Variant="Variant.Filled" Color="Color.Primary">Plan this week</MudButton>
+    </MudPaper>
+}
+else
+{
+    @if (ToBuyCount == 0 && !_showOnHand)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-4">You have everything for this week's recipes.</MudAlert>
+    }
+    else
+    {
+        <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mb-2">Tick an ingredient when you have it; it moves to your On hand list.</MudText>
+    }
+
+    @if (_groupByRecipe)
+    {
+        @foreach (var recipe in VisibleLines.GroupBy(l => l.EntryId))
+        {
+            var first = recipe.First();
+            <MudPaper Outlined="true" Class="pa-3 mb-3" @key="recipe.Key">
+                <div class="d-flex align-center gap-2 mb-1">
+                    <MudLink Href="@($"recipes/{first.RecipeId}")" Typo="Typo.h6" Color="Color.Inherit">@first.RecipeTitle</MudLink>
+                    @if (first.Day is not null)
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@first.Day</MudChip>
+                    }
+                </div>
+                @foreach (var line in recipe)
+                {
+                    <ShoppingItem Name="@line.IngredientName" OnHand="line.OnHand" OnHandChanged="@(onHand => SetOnHandAsync(line.IngredientId, line.IngredientName, onHand))">
+                        <b>@line.Amount</b> @line.IngredientName@(string.IsNullOrEmpty(line.Preparation) ? "" : $", {line.Preparation}")
+                    </ShoppingItem>
+                }
+            </MudPaper>
+        }
+    }
+    else
+    {
+        <MudPaper Outlined="true" Class="pa-3">
+            @foreach (var ingredient in VisibleLines.GroupBy(l => l.IngredientId).OrderBy(g => g.First().IngredientName))
+            {
+                var first = ingredient.First();
+                <ShoppingItem @key="ingredient.Key" Name="@first.IngredientName" OnHand="first.OnHand" OnHandChanged="@(onHand => SetOnHandAsync(first.IngredientId, first.IngredientName, onHand))">
+                    <span>@first.IngredientName</span>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">
+                        @string.Join(" · ", ingredient.Select(l => $"{l.Amount}{(string.IsNullOrEmpty(l.Preparation) ? "" : $", {l.Preparation}")} for {l.RecipeTitle}"))
+                    </MudText>
+                </ShoppingItem>
+            }
+        </MudPaper>
+    }
+}
+
+@code {
+    private DateOnly _weekStart = Week.Current;
+    private List<ShoppingLine>? _lines;
+    private bool _groupByRecipe;
+    private bool _showOnHand;
+
+    [SupplyParameterFromQuery(Name = "week")]
+    public string? WeekParameter { get; set; }
+
+    private IEnumerable<ShoppingLine> VisibleLines => _lines!.Where(l => _showOnHand || !l.OnHand);
+
+    private int ToBuyCount => _lines!.Where(l => !l.OnHand).Select(l => l.IngredientId).Distinct().Count();
+
+    private int OnHandCount => _lines!.Where(l => l.OnHand).Select(l => l.IngredientId).Distinct().Count();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _weekStart = WeekQuery.Parse(WeekParameter);
+        _lines = (await MealPlans.GetShoppingLinesAsync(_weekStart)).ToList();
+    }
+
+    private void ChangeWeek(DateOnly weekStart) => Navigation.NavigateTo(WeekQuery.Url("shopping-list", weekStart));
+
+    private async Task SetOnHandAsync(int ingredientId, string name, bool onHand, bool offerUndo = true)
+    {
+        await Pantry.SetOnHandAsync(ingredientId, onHand);
+        _lines = _lines!.Select(l => l.IngredientId == ingredientId ? l with { OnHand = onHand } : l).ToList();
+
+        if (offerUndo && onHand && !_showOnHand)
+        {
+            Snackbar.Add($"Marked {name} as on hand.", Severity.Normal, config =>
+            {
+                config.Action = "Undo";
+                config.ActionColor = Color.Primary;
+                config.OnClick = async _ =>
+                {
+                    await SetOnHandAsync(ingredientId, name, false, offerUndo: false);
+                    await InvokeAsync(StateHasChanged);
+                };
+            });
+        }
+    }
+}

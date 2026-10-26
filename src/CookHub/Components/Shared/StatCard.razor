@@ -1,0 +1,18 @@
+<MudItem xs="6" md="3">
+    <MudPaper Outlined="true" Class="pa-4">
+        <a href="@Href" style="color: inherit; text-decoration: none;" class="d-flex align-center gap-3">
+            <MudIcon Icon="@Icon" Color="Color.Primary" Size="Size.Large" />
+            <div>
+                <MudText Typo="Typo.h5">@Value</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">@Label</MudText>
+            </div>
+        </a>
+    </MudPaper>
+</MudItem>
+
+@code {
+    [Parameter, EditorRequired] public string Href { get; set; } = "";
+    [Parameter, EditorRequired] public string Icon { get; set; } = "";
+    [Parameter] public int Value { get; set; }
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+}

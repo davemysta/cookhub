@@ -1,0 +1,321 @@
+@page "/recipes/new"
+@page "/recipes/{Id:int}/edit"
+@using CookHub.Data.Entities
+@using Microsoft.AspNetCore.Components.Forms
+@inject RecipeService Recipes
+@inject LookupService Lookups
+@inject FamilyService Family
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>@(IsNew ? "New recipe" : "Edit recipe") · CookHub</PageTitle>
+
+<MudButton Href="@(IsNew ? "recipes" : $"recipes/{Id}")" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Class="mb-2">
+    @(IsNew ? "All recipes" : "Back to recipe")
+</MudButton>
+
+<MudText Typo="Typo.h4" Class="mb-4">@(IsNew ? "New recipe" : "Edit recipe")</MudText>
+
+@if (_model is null)
+{
+    if (_notFound)
+    {
+        <MudAlert Severity="Severity.Warning">That recipe doesn't exist, or it isn't one of yours.</MudAlert>
+    }
+    else
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+}
+else
+{
+    <MudGrid Spacing="4">
+        <MudItem xs="12" md="8">
+            <MudPaper Outlined="true" Class="pa-4 mb-4">
+                <MudTextField @bind-Value="_model.Title" Label="Title" Required="true" RequiredError="A title is required."
+                              MaxLength="Recipe.TitleMaxLength" Variant="Variant.Outlined" Class="mb-4" />
+                <MudTextField @bind-Value="_model.Description" Label="Description (optional)" Lines="3" Sizing="InputSizing.Auto"
+                              MaxLength="Recipe.DescriptionMaxLength" Counter="Recipe.DescriptionMaxLength" Immediate="true"
+                              Variant="Variant.Outlined" />
+            </MudPaper>
+
+            <MudPaper Outlined="true" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6">Ingredients</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mb-3">
+                    Amount and ingredient are required; preparation is optional (e.g. <i>1 cup</i> · <i>carrot</i> · <i>diced</i>).
+                    Look up an ingredient by name, or choose <b>Add</b> to create a new one.
+                </MudText>
+                @for (var i = 0; i < _model.Ingredients.Count; i++)
+                {
+                    var index = i;
+                    var row = _model.Ingredients[i];
+                    <MudGrid Spacing="2" Class="mb-1" @key="row">
+                        <MudItem xs="12" sm="3">
+                            <MudTextField @bind-Value="row.Amount" Label="Amount" Placeholder="1 cup" MaxLength="RecipeIngredient.AmountMaxLength"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <LookupAutocomplete @bind-Value="row.Ingredient" Label="Ingredient" Placeholder="Search ingredients"
+                                                Search="Lookups.SearchIngredientsAsync" Create="Lookups.GetOrCreateIngredientAsync"
+                                                Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3">
+                            <MudTextField @bind-Value="row.Preparation" Label="Preparation" Placeholder="diced" MaxLength="RecipeIngredient.PreparationMaxLength"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="2" Class="d-flex align-center">
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" aria-label="Move up" Disabled="index == 0"
+                                           OnClick="@(() => Move(_model.Ingredients, index, -1))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" aria-label="Move down" Disabled="index == _model.Ingredients.Count - 1"
+                                           OnClick="@(() => Move(_model.Ingredients, index, 1))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Remove ingredient"
+                                           OnClick="@(() => _model.Ingredients.RemoveAt(index))" />
+                        </MudItem>
+                    </MudGrid>
+                }
+                <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mt-2"
+                           OnClick="@(() => _model.Ingredients.Add(new()))">Add ingredient</MudButton>
+            </MudPaper>
+
+            <MudPaper Outlined="true" Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-3">Steps</MudText>
+                @for (var i = 0; i < _model.Steps.Count; i++)
+                {
+                    var index = i;
+                    var step = _model.Steps[i];
+                    <div class="d-flex gap-2 mb-3" @key="step">
+                        <div class="step-number mt-3">@(index + 1)</div>
+                        <MudTextField @bind-Value="step.Instruction" Label="@($"Step {index + 1}")" Lines="2" Sizing="InputSizing.Auto"
+                                      MaxLength="RecipeStep.InstructionMaxLength" Variant="Variant.Outlined" Class="flex-grow-1" />
+                        <div class="d-flex flex-column">
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" aria-label="Move up" Disabled="index == 0"
+                                           OnClick="@(() => Move(_model.Steps, index, -1))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" aria-label="Move down" Disabled="index == _model.Steps.Count - 1"
+                                           OnClick="@(() => Move(_model.Steps, index, 1))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="Remove step"
+                                           OnClick="@(() => _model.Steps.RemoveAt(index))" />
+                        </div>
+                    </div>
+                }
+                <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => _model.Steps.Add(new()))">Add step</MudButton>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+            <MudPaper Outlined="true" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Photo</MudText>
+                <img src="@ImagePreview" alt="" class="recipe-hero mb-2" />
+                @if (ImagePreview == ImageUrls.Placeholder)
+                {
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mb-2">No photo yet; this stock image is used instead.</MudText>
+                }
+                <div class="d-flex flex-wrap gap-2">
+                    <MudFileUpload T="IBrowserFile" Accept="@RecipeImage.AcceptAttribute" FilesChanged="OnImageSelectedAsync">
+                        <CustomContent>
+                            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.PhotoCamera" Disabled="_readingImage"
+                                       OnClick="@context.OpenFilePickerAsync">
+                                @(_readingImage ? "Loading…" : "Upload photo")
+                            </MudButton>
+                        </CustomContent>
+                        <SelectedTemplate>
+                            @* The preview above already shows the chosen photo. *@
+                        </SelectedTemplate>
+                    </MudFileUpload>
+                    @if (ImagePreview != ImageUrls.Placeholder)
+                    {
+                        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="RemoveImage">Remove photo</MudButton>
+                    }
+                </div>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">JPEG, PNG, GIF or WebP, up to @(RecipeImage.MaxBytes / 1024 / 1024) MB.</MudText>
+            </MudPaper>
+
+            <MudPaper Outlined="true" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Tags</MudText>
+                <LookupAutocomplete ClearAfterSelect="true" OnSelected="AddTag" Placeholder="Search or add a tag, e.g. mexican"
+                                    Search="Lookups.SearchTagsAsync" Create="Lookups.GetOrCreateTagAsync"
+                                    Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <div class="d-flex flex-wrap gap-1 mt-2">
+                    @foreach (var tag in _model.Tags)
+                    {
+                        <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small"
+                                 OnClose="@(() => _model.Tags.Remove(tag))">@tag.Name</MudChip>
+                    }
+                </div>
+            </MudPaper>
+
+            <MudPaper Outlined="true" Class="pa-4 mb-4">
+                <div class="d-flex align-center gap-2 mb-1">
+                    <MudIcon Icon="@Icons.Material.Filled.Favorite" Color="Color.Error" Size="Size.Small" />
+                    <MudText Typo="Typo.h6">Liked by</MudText>
+                </div>
+                @foreach (var person in _people)
+                {
+                    <MudCheckBox T="bool" Value="_model.LikedBy.Contains(person.FamilyMemberId)" Color="Color.Error" Dense="true"
+                                 ValueChanged="@(liked => SetLiked(person, liked))"
+                                 Label="@(person.IsMe ? $"{person.Name} (me)" : person.Name)" />
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12">
+            @if (_errors.Count > 0)
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-4">
+                    <MudText Typo="Typo.subtitle2">Please fix the following:</MudText>
+                    <ul class="ml-4" style="list-style: disc;">
+                        @foreach (var error in _errors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                </MudAlert>
+            }
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" Disabled="_saving || _readingImage" OnClick="SaveAsync">
+                    @(_saving ? "Saving…" : "Save recipe")
+                </MudButton>
+                <MudButton Variant="Variant.Text" Href="@(IsNew ? "recipes" : $"recipes/{Id}")">Cancel</MudButton>
+            </div>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private RecipeEditModel? _model;
+    private IReadOnlyList<Person> _people = [];
+    private List<string> _errors = [];
+    private bool _notFound;
+    private bool _saving;
+    private bool _readingImage;
+
+    [Parameter] public int? Id { get; set; }
+
+    private bool IsNew => Id is null;
+
+    private string ImagePreview => _model switch
+    {
+        { NewImageData: not null } m => $"data:{m.NewImageContentType};base64,{Convert.ToBase64String(m.NewImageData)}",
+        { RemoveImage: false, ExistingImageUrl: not null } m => m.ExistingImageUrl,
+        _ => ImageUrls.Placeholder,
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _people = await Family.GetPeopleAsync();
+        if (IsNew)
+        {
+            _model = new RecipeEditModel
+            {
+                Ingredients = [new()],
+                Steps = [new()],
+            };
+            return;
+        }
+
+        _model = await Recipes.GetForEditAsync(Id!.Value);
+        _notFound = _model is null;
+    }
+
+    private static void Move<T>(List<T> list, int index, int offset)
+    {
+        var target = index + offset;
+        if (target < 0 || target >= list.Count)
+        {
+            return;
+        }
+
+        (list[index], list[target]) = (list[target], list[index]);
+    }
+
+    private void AddTag(LookupItem tag)
+    {
+        if (_model!.Tags.All(t => t.Id != tag.Id))
+        {
+            _model.Tags.Add(tag);
+        }
+    }
+
+    private void SetLiked(Person person, bool liked)
+    {
+        if (liked)
+        {
+            _model!.LikedBy.Add(person.FamilyMemberId);
+        }
+        else
+        {
+            _model!.LikedBy.Remove(person.FamilyMemberId);
+        }
+    }
+
+    private async Task OnImageSelectedAsync(IBrowserFile? file)
+    {
+        if (file is null)
+        {
+            return;
+        }
+
+        if (!RecipeImage.AllowedContentTypes.Contains(file.ContentType))
+        {
+            Snackbar.Add("Please choose a JPEG, PNG, GIF or WebP image.", Severity.Warning);
+            return;
+        }
+
+        if (file.Size > RecipeImage.MaxBytes)
+        {
+            Snackbar.Add($"That image is too large. The limit is {RecipeImage.MaxBytes / 1024 / 1024} MB.", Severity.Warning);
+            return;
+        }
+
+        _readingImage = true;
+        try
+        {
+            await using var stream = file.OpenReadStream(RecipeImage.MaxBytes);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+            _model!.NewImageData = buffer.ToArray();
+            _model.NewImageContentType = file.ContentType;
+            _model.RemoveImage = false;
+        }
+        catch (IOException)
+        {
+            Snackbar.Add("Couldn't read that image. Please try again.", Severity.Error);
+        }
+        finally
+        {
+            _readingImage = false;
+        }
+    }
+
+    private void RemoveImage()
+    {
+        _model!.NewImageData = null;
+        _model.NewImageContentType = null;
+        _model.RemoveImage = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _errors = _model!.Validate();
+        if (_errors.Count > 0)
+        {
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var id = await Recipes.SaveAsync(_model);
+            Snackbar.Add($"Saved {_model.Title.Trim()}.", Severity.Success);
+            Navigation.NavigateTo($"recipes/{id}");
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            _errors = [ex.Message];
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

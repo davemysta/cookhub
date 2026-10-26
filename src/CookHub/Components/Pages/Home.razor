@@ -1,0 +1,133 @@
+@page "/"
+@inject RecipeService Recipes
+@inject MealPlanService MealPlans
+@inject PantryService Pantry
+@inject FamilyService Family
+@inject IDialogService Dialogs
+
+<PageTitle>Home · CookHub</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudText Typo="Typo.h4">Hi @_name!</MudText>
+    <MudText Class="mud-text-secondary mb-6">This week is @Week.Label(Week.Current).</MudText>
+
+    <MudGrid Spacing="3" Class="mb-6">
+        <StatCard Href="recipes" Icon="@Icons.Material.Filled.MenuBook" Value="_recipeCount" Label="Recipes" />
+        <StatCard Href="meal-plan" Icon="@Icons.Material.Filled.CalendarMonth" Value="_plan.Count" Label="Planned this week" />
+        <StatCard Href="shopping-list" Icon="@Icons.Material.Filled.ShoppingCart" Value="_toBuyCount" Label="To buy this week" />
+        <StatCard Href="on-hand" Icon="@Icons.Material.Filled.Kitchen" Value="_onHandCount" Label="Ingredients on hand" />
+    </MudGrid>
+
+    <MudGrid Spacing="4">
+        <MudItem xs="12" md="5">
+            <MudPaper Outlined="true" Class="pa-4">
+                <div class="d-flex align-center mb-2">
+                    <MudText Typo="Typo.h6">This week's meals</MudText>
+                    <MudSpacer />
+                    <MudButton Href="meal-plan" Variant="Variant.Text" Size="Size.Small">Open plan</MudButton>
+                </div>
+                @if (_plan.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Nothing planned yet. Pick something from the suggestions, or browse <MudLink Href="recipes" Typo="Typo.body2">your recipes</MudLink>.</MudText>
+                }
+                else
+                {
+                    @foreach (var item in _plan)
+                    {
+                        <div class="d-flex align-center gap-3 py-2">
+                            <img src="@item.ImageUrl" alt="" class="recipe-thumb" />
+                            <div class="flex-grow-1">
+                                <MudLink Href="@($"recipes/{item.RecipeId}")" Color="Color.Inherit">@item.Title</MudLink>
+                                <MudText Typo="Typo.caption" Class="d-block mud-text-secondary">
+                                    @(item.Day?.ToString() ?? "Any day") · @(item.MissingCount == 0 ? "all ingredients on hand" : $"{item.MissingCount} to buy")
+                                </MudText>
+                            </div>
+                        </div>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="7">
+            <MudPaper Outlined="true" Class="pa-4">
+                <MudText Typo="Typo.h6">Suggestions</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mb-3">Recipes you mostly have the ingredients for and haven't planned this week.</MudText>
+                @if (_suggestions.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                        @if (_recipeCount == 0)
+                        {
+                            <span>Add some <MudLink Href="recipes/new" Typo="Typo.body2">recipes</MudLink> to get suggestions.</span>
+                        }
+                        else
+                        {
+                            <span>Mark what's in your kitchen on the <MudLink Href="on-hand" Typo="Typo.body2">On hand</MudLink> page to get suggestions.</span>
+                        }
+                    </MudText>
+                }
+                else
+                {
+                    <MudGrid Spacing="2">
+                        @foreach (var recipe in _suggestions)
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudPaper Outlined="true" Class="d-flex align-center gap-3 pa-2">
+                                    <img src="@recipe.ImageUrl" alt="" class="recipe-thumb" />
+                                    <div class="flex-grow-1" style="min-width: 0;">
+                                        <MudLink Href="@($"recipes/{recipe.Id}")" Color="Color.Inherit" Class="d-block text-truncate">@recipe.Title</MudLink>
+                                        <OnHandChip OnHand="recipe.OnHandCount" Total="recipe.IngredientCount" />
+                                    </div>
+                                    <MudTooltip Text="Add to this week">
+                                        <MudIconButton Icon="@Icons.Material.Filled.EventAvailable" Color="Color.Primary" aria-label="@($"Add {recipe.Title} to this week")"
+                                                       OnClick="@(() => AddToPlanAsync(recipe))" />
+                                    </MudTooltip>
+                                </MudPaper>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private bool _loading = true;
+    private string _name = "";
+    private int _recipeCount;
+    private int _onHandCount;
+    private int _toBuyCount;
+    private IReadOnlyList<MealPlanItem> _plan = [];
+    private IReadOnlyList<RecipeSummary> _suggestions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _name = (await Family.GetPeopleAsync())[0].Name;
+        _recipeCount = await Recipes.CountAsync();
+        _onHandCount = (await Pantry.GetOnHandAsync()).Count;
+        await LoadWeekAsync();
+        _loading = false;
+    }
+
+    private async Task LoadWeekAsync()
+    {
+        _plan = await MealPlans.GetWeekAsync(Week.Current);
+        _toBuyCount = (await MealPlans.GetShoppingLinesAsync(Week.Current)).Where(l => !l.OnHand).Select(l => l.IngredientId).Distinct().Count();
+        _suggestions = await Recipes.GetSuggestionsAsync(Week.Current, 6);
+    }
+
+    private async Task AddToPlanAsync(RecipeSummary recipe)
+    {
+        var dialog = await AddToMealPlanDialog.ShowAsync(Dialogs, recipe.Id, recipe.Title);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            await LoadWeekAsync();
+        }
+    }
+}

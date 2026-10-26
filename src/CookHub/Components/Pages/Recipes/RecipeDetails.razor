@@ -1,0 +1,156 @@
+@page "/recipes/{Id:int}"
+@inject RecipeService Recipes
+@inject PantryService Pantry
+@inject NavigationManager Navigation
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_recipe?.Title ?? "Recipe") · CookHub</PageTitle>
+
+<MudButton Href="recipes" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Class="mb-2">All recipes</MudButton>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_recipe is null)
+{
+    <MudAlert Severity="Severity.Warning">That recipe doesn't exist, or it isn't one of yours.</MudAlert>
+}
+else
+{
+    <div class="d-flex align-center flex-wrap gap-2 mb-4">
+        <MudText Typo="Typo.h4">@_recipe.Title</MudText>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.EventAvailable" OnClick="AddToPlanAsync">Add to meal plan</MudButton>
+        <MudButton Href="@($"recipes/{Id}/edit")" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Edit">Edit</MudButton>
+        <MudTooltip Text="Delete recipe">
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" aria-label="Delete recipe" OnClick="DeleteAsync" />
+        </MudTooltip>
+    </div>
+
+    <MudGrid Spacing="4">
+        <MudItem xs="12" md="5">
+            <img src="@_recipe.ImageUrl" alt="@_recipe.Title" class="recipe-hero mb-4" />
+
+            @if (!string.IsNullOrEmpty(_recipe.Description))
+            {
+                <MudText Class="mb-4" Style="white-space: pre-line;">@_recipe.Description</MudText>
+            }
+
+            @if (_recipe.Tags.Count > 0)
+            {
+                <div class="d-flex flex-wrap gap-1 mb-4">
+                    @foreach (var tag in _recipe.Tags)
+                    {
+                        <MudChip T="string" Icon="@Icons.Material.Filled.LocalOffer" Size="Size.Small" Variant="Variant.Outlined">@tag.Name</MudChip>
+                    }
+                </div>
+            }
+
+            <MudPaper Outlined="true" Class="pa-4">
+                <div class="d-flex align-center gap-2 mb-1">
+                    <MudIcon Icon="@Icons.Material.Filled.Favorite" Color="Color.Error" Size="Size.Small" />
+                    <MudText Typo="Typo.h6">Liked by</MudText>
+                </div>
+                @foreach (var entry in _likedBy)
+                {
+                    <MudCheckBox T="bool" Value="entry.Liked" ValueChanged="@(liked => SetLikedAsync(entry, liked))" Color="Color.Error" Dense="true"
+                                 Label="@(entry.Person.IsMe ? $"{entry.Person.Name} (me)" : entry.Person.Name)" />
+                }
+                @if (_likedBy.Count == 1)
+                {
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Add <MudLink Href="family" Typo="Typo.caption">family members</MudLink> to track what they like too.
+                    </MudText>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="7">
+            <MudPaper Outlined="true" Class="pa-4 mb-4">
+                <div class="d-flex align-center flex-wrap gap-2">
+                    <MudText Typo="Typo.h6">Ingredients</MudText>
+                    <MudSpacer />
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">@_ingredients.Count(i => i.OnHand) of @_ingredients.Count on hand</MudText>
+                </div>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Tick what you already have and it's added to your <MudLink Href="on-hand" Typo="Typo.caption">On hand</MudLink> list.</MudText>
+                <MudList T="string" Dense="true" Class="mt-2">
+                    @foreach (var line in _ingredients)
+                    {
+                        <MudListItem T="string">
+                            <div class="d-flex align-center">
+                                <MudCheckBox T="bool" Value="line.OnHand" ValueChanged="@(onHand => SetOnHandAsync(line, onHand))" Color="Color.Success" Dense="true"
+                                             aria-label="@($"I have {line.Name}")" />
+                                <span class="@(line.OnHand ? "on-hand-text" : null)">
+                                    <b>@line.Amount</b> @line.Name@(string.IsNullOrEmpty(line.Preparation) ? "" : $", {line.Preparation}")
+                                </span>
+                            </div>
+                        </MudListItem>
+                    }
+                </MudList>
+            </MudPaper>
+
+            <MudPaper Outlined="true" Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-3">Steps</MudText>
+                @foreach (var (step, index) in _recipe.Steps.Select((step, index) => (step, index)))
+                {
+                    <div class="d-flex gap-3 mb-4">
+                        <div class="step-number">@(index + 1)</div>
+                        <MudText Style="white-space: pre-line; padding-top: 4px;">@step</MudText>
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private bool _loading = true;
+    private RecipeDetailsModel? _recipe;
+    private List<RecipeIngredientLine> _ingredients = [];
+    private List<LikedByEntry> _likedBy = [];
+
+    [Parameter] public int Id { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _recipe = await Recipes.GetAsync(Id);
+        _ingredients = _recipe?.Ingredients.ToList() ?? [];
+        _likedBy = _recipe?.LikedBy.ToList() ?? [];
+        _loading = false;
+    }
+
+    private async Task SetOnHandAsync(RecipeIngredientLine line, bool onHand)
+    {
+        await Pantry.SetOnHandAsync(line.IngredientId, onHand);
+        // The same ingredient can appear on more than one line.
+        _ingredients = _ingredients.Select(i => i.IngredientId == line.IngredientId ? i with { OnHand = onHand } : i).ToList();
+    }
+
+    private async Task SetLikedAsync(LikedByEntry entry, bool liked)
+    {
+        await Recipes.SetLikedAsync(Id, entry.Person.FamilyMemberId, liked);
+        _likedBy = _likedBy.Select(e => e == entry ? e with { Liked = liked } : e).ToList();
+    }
+
+    private Task AddToPlanAsync() => AddToMealPlanDialog.ShowAsync(Dialogs, Id, _recipe!.Title);
+
+    private async Task DeleteAsync()
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            "Delete recipe",
+            $"Delete \"{_recipe!.Title}\"? It will also be removed from any meal plans.",
+            yesText: "Delete",
+            cancelText: "Cancel");
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await Recipes.DeleteAsync(Id);
+        Snackbar.Add($"Deleted {_recipe.Title}.", Severity.Info);
+        Navigation.NavigateTo("recipes");
+    }
+}

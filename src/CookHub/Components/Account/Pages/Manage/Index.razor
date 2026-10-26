@@ -1,0 +1,86 @@
+@page "/Account/Manage"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using CookHub.Data
+
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>Profile · CookHub</PageTitle>
+
+<MudText Typo="Typo.h6" GutterBottom="true">Profile</MudText>
+
+<StatusMessage />
+
+<EditForm Model="Input" FormName="profile" OnValidSubmit="OnValidSubmitAsync" method="post">
+    <DataAnnotationsValidator />
+
+    <MudGrid>
+        <MudItem xs="12">
+            <MudStaticTextField Value="@username" Label="Email" Disabled="true" />
+        </MudItem>
+        <MudItem xs="12">
+            <MudStaticTextField For="@(() => Input.DisplayName)" @bind-Value="Input.DisplayName"
+                                Label="Your name" HelperText="Shown next to your family members in &quot;Liked by&quot;."
+                                UserAttributes="@(new() { { "autocomplete", "name" } } )" />
+        </MudItem>
+        <MudItem xs="12">
+            <MudStaticButton Variant="Variant.Filled" Color="Color.Primary" FormAction="FormAction.Submit">Save</MudStaticButton>
+        </MudItem>
+    </MudGrid>
+</EditForm>
+
+@code {
+    private ApplicationUser? user;
+    private string? username;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        user = await UserManager.GetUserAsync(HttpContext.User);
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        username = await UserManager.GetUserNameAsync(user);
+        Input.DisplayName ??= user.DisplayName;
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        user.DisplayName = Input.DisplayName!.Trim();
+        var result = await UserManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to update your profile.", HttpContext);
+            return;
+        }
+
+        await SignInManager.RefreshSignInAsync(user);
+        RedirectManager.RedirectToCurrentPageWithStatus("Your profile has been updated", HttpContext);
+    }
+
+    private sealed class InputModel
+    {
+        [Required]
+        [StringLength(100)]
+        [Display(Name = "Your name")]
+        public string? DisplayName { get; set; }
+    }
+}

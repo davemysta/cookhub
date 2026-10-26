@@ -1,0 +1,151 @@
+@page "/family"
+@inject FamilyService Family
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+
+<PageTitle>Family · CookHub</PageTitle>
+
+<MudText Typo="Typo.h4">Family members</MudText>
+<MudText Class="mud-text-secondary mb-4">
+    Family members appear in every recipe's "Liked by" list, alongside you.
+</MudText>
+
+<MudPaper Outlined="true" Class="pa-4 mb-4" Style="max-width: 40rem;">
+    <div class="d-flex align-center gap-2">
+        <MudTextField @bind-Value="_newName" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true"
+                      MaxLength="CookHub.Data.Entities.FamilyMember.NameMaxLength" OnKeyDown="@(e => e.Key == "Enter" ? AddAsync() : Task.CompletedTask)" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+                   Disabled="string.IsNullOrWhiteSpace(_newName)" OnClick="AddAsync">Add</MudButton>
+    </div>
+</MudPaper>
+
+@if (_people is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudPaper Outlined="true" Style="max-width: 40rem;">
+        <MudList T="string" Padding="false">
+            @foreach (var person in _people)
+            {
+                <MudListItem T="string" @key="person.FamilyMemberId">
+                    <div class="d-flex align-center gap-3">
+                        <MudAvatar Color="@(person.IsMe ? Color.Primary : Color.Secondary)" Size="Size.Small">@Initial(person.Name)</MudAvatar>
+                        @if (_editingId is not null && _editingId == person.FamilyMemberId)
+                        {
+                            <MudTextField @bind-Value="_editName" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" AutoFocus="true"
+                                          MaxLength="CookHub.Data.Entities.FamilyMember.NameMaxLength"
+                                          OnKeyDown="@(e => e.Key == "Enter" ? SaveRenameAsync() : e.Key == "Escape" ? CancelRename() : Task.CompletedTask)" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Primary" aria-label="Save name" OnClick="SaveRenameAsync" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" aria-label="Cancel" OnClick="CancelRename" />
+                        }
+                        else
+                        {
+                            <MudText Class="flex-grow-1">@person.Name</MudText>
+                            @if (person.IsMe)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">me</MudChip>
+                                <MudTooltip Text="Change your name on the Account page">
+                                    <MudIconButton Icon="@Icons.Material.Filled.ManageAccounts" Href="Account/Manage" aria-label="Change your name" />
+                                </MudTooltip>
+                            }
+                            else
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" aria-label="@($"Rename {person.Name}")" OnClick="@(() => StartRename(person))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" aria-label="@($"Remove {person.Name}")" OnClick="@(() => RemoveAsync(person))" />
+                            }
+                        }
+                    </div>
+                </MudListItem>
+                <MudDivider />
+            }
+        </MudList>
+    </MudPaper>
+
+    @if (_people.Count == 1)
+    {
+        <MudText Typo="Typo.body2" Class="mud-text-secondary mt-3">No family members yet. Add someone above.</MudText>
+    }
+}
+
+@code {
+    private IReadOnlyList<Person>? _people;
+    private string _newName = "";
+    private int? _editingId;
+    private string _editName = "";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _people = await Family.GetPeopleAsync();
+
+    private static string Initial(string name) => name.Length > 0 ? name[..1].ToUpperInvariant() : "?";
+
+    private async Task AddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newName))
+        {
+            return;
+        }
+
+        try
+        {
+            var member = await Family.AddAsync(_newName);
+            _newName = "";
+            Snackbar.Add($"Added {member.Name}.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (ArgumentException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private void StartRename(Person person)
+    {
+        _editingId = person.FamilyMemberId;
+        _editName = person.Name;
+    }
+
+    private Task CancelRename()
+    {
+        _editingId = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveRenameAsync()
+    {
+        if (_editingId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Family.RenameAsync(_editingId.Value, _editName);
+            _editingId = null;
+            await LoadAsync();
+        }
+        catch (ArgumentException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task RemoveAsync(Person person)
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            "Remove family member",
+            $"Remove {person.Name}? Their likes will be removed from every recipe.",
+            yesText: "Remove",
+            cancelText: "Cancel");
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await Family.DeleteAsync(person.FamilyMemberId!.Value);
+        Snackbar.Add($"Removed {person.Name}.", Severity.Info);
+        await LoadAsync();
+    }
+}

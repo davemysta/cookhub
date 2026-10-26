@@ -1,0 +1,20 @@
+<div class="d-flex align-center flex-wrap gap-2">
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" aria-label="Previous week" OnClick="@(() => ChangeAsync(WeekStart.AddDays(-7)))" />
+    <MudText Typo="Typo.h6" Style="min-width: 15rem;" Align="Align.Center">@Week.Label(WeekStart)</MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" aria-label="Next week" OnClick="@(() => ChangeAsync(WeekStart.AddDays(7)))" />
+    @if (WeekStart == Week.Current)
+    {
+        <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small">This week</MudChip>
+    }
+    else
+    {
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => ChangeAsync(Week.Current))">Go to this week</MudButton>
+    }
+</div>
+
+@code {
+    [Parameter] public DateOnly WeekStart { get; set; }
+    [Parameter] public EventCallback<DateOnly> WeekStartChanged { get; set; }
+
+    private Task ChangeAsync(DateOnly weekStart) => WeekStartChanged.InvokeAsync(Week.StartOf(weekStart));
+}
