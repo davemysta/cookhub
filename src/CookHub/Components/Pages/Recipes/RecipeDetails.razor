@@ -83,7 +83,7 @@ else
                                 <MudCheckBox T="bool" Value="line.OnHand" ValueChanged="@(onHand => SetOnHandAsync(line, onHand))" Color="Color.Success" Dense="true"
                                              aria-label="@($"I have {line.Name}")" />
                                 <span class="@(line.OnHand ? "on-hand-text" : null)">
-                                    <b>@line.Amount</b> @line.Name@(string.IsNullOrEmpty(line.Preparation) ? "" : $", {line.Preparation}")
+                                    @if (!string.IsNullOrEmpty(line.Amount)) { <b>@line.Amount</b>@(" ") }@line.Name@(string.IsNullOrEmpty(line.Preparation) ? "" : $", {line.Preparation}")
                                 </span>
                             </div>
                         </MudListItem>

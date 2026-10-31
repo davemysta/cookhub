@@ -65,7 +65,7 @@ else
                 @foreach (var line in recipe)
                 {
                     <ShoppingItem Name="@line.IngredientName" OnHand="line.OnHand" OnHandChanged="@(onHand => SetOnHandAsync(line.IngredientId, line.IngredientName, onHand))">
-                        <b>@line.Amount</b> @line.IngredientName@(string.IsNullOrEmpty(line.Preparation) ? "" : $", {line.Preparation}")
+                        @if (!string.IsNullOrEmpty(line.Amount)) { <b>@line.Amount</b>@(" ") }@line.IngredientName@(string.IsNullOrEmpty(line.Preparation) ? "" : $", {line.Preparation}")
                     </ShoppingItem>
                 }
             </MudPaper>
@@ -80,7 +80,7 @@ else
                 <ShoppingItem @key="ingredient.Key" Name="@first.IngredientName" OnHand="first.OnHand" OnHandChanged="@(onHand => SetOnHandAsync(first.IngredientId, first.IngredientName, onHand))">
                     <span>@first.IngredientName</span>
                     <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">
-                        @string.Join(" · ", ingredient.Select(l => $"{l.Amount}{(string.IsNullOrEmpty(l.Preparation) ? "" : $", {l.Preparation}")} for {l.RecipeTitle}"))
+                        @string.Join(" · ", ingredient.Select(DescribeUse))
                     </MudText>
                 </ShoppingItem>
             }
@@ -89,6 +89,13 @@ else
 }
 
 @code {
+    // "2 cups, diced for Tacos", or just "for Tacos" when the recipe gives no amount.
+    private static string DescribeUse(ShoppingLine line)
+    {
+        var detail = string.Join(", ", new[] { line.Amount, line.Preparation }.Where(s => !string.IsNullOrEmpty(s)));
+        return detail.Length == 0 ? $"for {line.RecipeTitle}" : $"{detail} for {line.RecipeTitle}";
+    }
+
     private DateOnly _weekStart = Week.Current;
     private List<ShoppingLine>? _lines;
     private bool _groupByRecipe;

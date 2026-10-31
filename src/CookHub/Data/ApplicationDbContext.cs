@@ -58,7 +58,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         builder.Entity<RecipeIngredient>(b =>
         {
-            b.Property(i => i.Amount).HasMaxLength(RecipeIngredient.AmountMaxLength).IsRequired();
+            b.Property(i => i.Amount).HasMaxLength(RecipeIngredient.AmountMaxLength);
             b.Property(i => i.Preparation).HasMaxLength(RecipeIngredient.PreparationMaxLength);
             b.HasOne(i => i.Recipe).WithMany(r => r.Ingredients).HasForeignKey(i => i.RecipeId).OnDelete(DeleteBehavior.Cascade);
             // Ingredients are shared, so one in use by a recipe can't be deleted.

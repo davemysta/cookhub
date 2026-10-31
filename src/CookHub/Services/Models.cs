@@ -77,7 +77,7 @@ public sealed record RecipeSummary(
     public int MissingCount => IngredientCount - OnHandCount;
 }
 
-public sealed record RecipeIngredientLine(int IngredientId, string Name, string Amount, string? Preparation, bool OnHand);
+public sealed record RecipeIngredientLine(int IngredientId, string Name, string? Amount, string? Preparation, bool OnHand);
 
 public sealed record RecipeDetailsModel(
     int Id,
@@ -110,6 +110,6 @@ public sealed record ShoppingLine(
     DayOfWeek? Day,
     int IngredientId,
     string IngredientName,
-    string Amount,
+    string? Amount,
     string? Preparation,
     bool OnHand);
