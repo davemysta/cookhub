@@ -36,7 +36,7 @@ Built with ASP.NET Core Blazor Server (.NET 10), MudBlazor 9, EF Core 10 and SQL
 
 ### 1. SQL Server
 
-Any SQL Server 2019+ edition works, including the free Express or Developer editions. To run one in Docker:
+Any SQL Server 2019+ edition works, including the free Express or Developer editions. On Windows, install SQL Server Developer or Express edition from Microsoft. Developer edition works with the default connection string below; Express installs as `localhost\SQLEXPRESS`, so use `Server=localhost\SQLEXPRESS` in the connection string. Or, if you have Docker on your PC, run one in a container:
 
 ```bash
 docker run -d --name cookhub-sql -e ACCEPT_EULA=Y -e 'MSSQL_SA_PASSWORD=<a strong password>' \
@@ -132,14 +132,16 @@ CookHub sends Claude the link along with instructions describing CookHub's recip
 
 These steps assume Ubuntu Server 24.04 LTS, a user with `sudo`, and that the server can reach the internet. Commands are run on the server unless stated otherwise. CookHub will be built from git on the server, installed to `/opt/cookhub`, and run as a systemd service under its own `cookhub` user.
 
-### 1. Install the .NET 10 SDK, git and Docker
+SQL Server is installed directly on Ubuntu from Microsoft's package repository; no Docker is needed. SQL Server needs a 64-bit Intel or AMD processor (not a Raspberry Pi or other ARM board) and at least 2 GB of memory.
+
+### 1. Install the .NET 10 SDK and git
 
 ```bash
 sudo apt update
 ```
 
 ```bash
-sudo apt install -y dotnet-sdk-10.0 git docker.io
+sudo apt install -y dotnet-sdk-10.0 git curl
 ```
 
 ```bash
@@ -148,18 +150,57 @@ dotnet --version
 
 The SDK includes the ASP.NET Core runtime, so the server can both build and run the app. (If `dotnet-sdk-10.0` isn't found on your Ubuntu version, follow Microsoft's instructions at <https://learn.microsoft.com/dotnet/core/install/linux-ubuntu>.)
 
-### 2. Run SQL Server in Docker
+### 2. Install SQL Server
 
-Choose a strong password (at least 8 characters with upper case, lower case and a digit or symbol) and keep it for step 4.
+SQL Server 2025 supports Ubuntu 24.04. First add Microsoft's signing key and package repositories (one for SQL Server, one for its command-line tools):
 
 ```bash
-sudo docker run -d --name cookhub-sql --restart unless-stopped \
-  -e ACCEPT_EULA=Y -e 'MSSQL_SA_PASSWORD=<a strong password>' \
-  -p 127.0.0.1:1433:1433 -v cookhub-sql:/var/opt/mssql \
-  mcr.microsoft.com/mssql/server:2022-latest
+curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor --yes -o /usr/share/keyrings/microsoft-prod.gpg
 ```
 
-`127.0.0.1:1433` keeps the database reachable only from the server itself. `--restart unless-stopped` starts it again after a reboot, and the `cookhub-sql` volume keeps the data when the container is replaced. Check it's running with `sudo docker ps`.
+```bash
+curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/mssql-server-2025.list | sudo tee /etc/apt/sources.list.d/mssql-server-2025.list
+```
+
+```bash
+curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+```
+
+Install SQL Server:
+
+```bash
+sudo apt update
+```
+
+```bash
+sudo apt install -y mssql-server
+```
+
+Then run its setup:
+
+```bash
+sudo /opt/mssql/bin/mssql-conf setup
+```
+
+When it asks:
+
+- **Edition**: choose **Express**. It's free, allowed for this kind of use, and handles a family recipe box easily (databases up to 50 GB).
+- **License terms**: type `Yes`.
+- **System administrator (sa) password**: choose a strong password (at least 8 characters with upper case, lower case and a digit or symbol). Keep it for step 4.
+
+Check that it's running. It starts automatically on boot from now on.
+
+```bash
+systemctl status mssql-server --no-pager
+```
+
+Install the command-line tools, used for backups below:
+
+```bash
+sudo ACCEPT_EULA=Y apt install -y mssql-tools18 unixodbc-dev
+```
+
+SQL Server listens on port 1433. CookHub connects to it on the same machine, so **don't** open that port in the firewall.
 
 ### 3. Get the code and publish it
 
@@ -233,8 +274,8 @@ Paste:
 ```ini
 [Unit]
 Description=CookHub
-After=network-online.target docker.service
-Wants=network-online.target
+After=network-online.target mssql-server.service
+Wants=network-online.target mssql-server.service
 
 [Service]
 User=cookhub
@@ -287,11 +328,11 @@ Things to know:
 - **Backups.** Photos are stored in the database (table `RecipeImages`), so backing up the database backs up everything:
 
   ```bash
-  sudo docker exec cookhub-sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '<a strong password>' -C \
+  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '<a strong password>' -C \
     -Q "BACKUP DATABASE CookHub TO DISK = N'/var/opt/mssql/data/CookHub.bak' WITH INIT"
   ```
 
-  The backup is written inside the `cookhub-sql` volume; copy it off the server with `sudo docker cp cookhub-sql:/var/opt/mssql/data/CookHub.bak .`.
+  This writes `/var/opt/mssql/data/CookHub.bak`. Copy it somewhere safe, e.g. `sudo cp /var/opt/mssql/data/CookHub.bak ~/` and then off the server. To restore it, stop CookHub (`sudo systemctl stop cookhub`) and run the same command with `RESTORE DATABASE CookHub FROM DISK = N'/var/opt/mssql/data/CookHub.bak' WITH REPLACE`.
 
 ## Updating the app after it's deployed
 
