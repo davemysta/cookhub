@@ -5,6 +5,7 @@
 @inject RecipeService Recipes
 @inject LookupService Lookups
 @inject FamilyService Family
+@inject RecipeImportService Importer
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
@@ -30,6 +31,39 @@
 else
 {
     <MudGrid Spacing="4">
+        @if (IsNew)
+        {
+            <MudItem xs="12">
+                <MudPaper Outlined="true" Class="pa-4">
+                    <div class="d-flex flex-wrap align-center gap-2">
+                        <MudTextField @bind-Value="_importUrl" Label="Add from link" Placeholder="https://example.com/best-ever-tacos"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" Disabled="_importing"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Link"
+                                      InputType="InputType.Url" Class="flex-grow-1" Style="min-width: 260px;" />
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="ImportAsync"
+                                   Disabled="@(_importing || string.IsNullOrWhiteSpace(_importUrl))" Style="min-width: 150px;">
+                            @if (_importing)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                <span>Reading page…</span>
+                            }
+                            else
+                            {
+                                <span>Add recipe</span>
+                            }
+                        </MudButton>
+                    </div>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mt-1">
+                        Paste a link to a recipe and Claude will fill in the form below for you to check before saving. This can take up to a minute.
+                    </MudText>
+                    @if (_importError is not null)
+                    {
+                        <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">@_importError</MudAlert>
+                    }
+                </MudPaper>
+            </MudItem>
+        }
+
         <MudItem xs="12" md="8">
             <MudPaper Outlined="true" Class="pa-4 mb-4">
                 <MudTextField @bind-Value="_model.Title" Label="Title" Required="true" RequiredError="A title is required."
@@ -42,7 +76,7 @@ else
             <MudPaper Outlined="true" Class="pa-4 mb-4">
                 <MudText Typo="Typo.h6">Ingredients</MudText>
                 <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mb-3">
-                    Amount and ingredient are required; preparation is optional (e.g. <i>1 cup</i> · <i>carrot</i> · <i>diced</i>).
+                    Ingredient is required; amount and preparation are optional (e.g. <i>1 cup</i> · <i>carrot</i> · <i>diced</i>, or just <i>salt</i>).
                     Look up an ingredient by name, or choose <b>Add</b> to create a new one.
                 </MudText>
                 @for (var i = 0; i < _model.Ingredients.Count; i++)
@@ -51,7 +85,7 @@ else
                     var row = _model.Ingredients[i];
                     <MudGrid Spacing="2" Class="mb-1" @key="row">
                         <MudItem xs="12" sm="3">
-                            <MudTextField @bind-Value="row.Amount" Label="Amount" Placeholder="1 cup" MaxLength="RecipeIngredient.AmountMaxLength"
+                            <MudTextField @bind-Value="row.Amount" Label="Amount (optional)" Placeholder="1 cup" MaxLength="RecipeIngredient.AmountMaxLength"
                                           Variant="Variant.Outlined" Margin="Margin.Dense" />
                         </MudItem>
                         <MudItem xs="12" sm="4">
@@ -172,7 +206,7 @@ else
                 </MudAlert>
             }
             <div class="d-flex gap-2">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" Disabled="_saving || _readingImage" OnClick="SaveAsync">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" Disabled="_saving || _readingImage || _importing" OnClick="SaveAsync">
                     @(_saving ? "Saving…" : "Save recipe")
                 </MudButton>
                 <MudButton Variant="Variant.Text" Href="@(IsNew ? "recipes" : $"recipes/{Id}")">Cancel</MudButton>
@@ -188,6 +222,9 @@ else
     private bool _notFound;
     private bool _saving;
     private bool _readingImage;
+    private bool _importing;
+    private string? _importUrl;
+    private string? _importError;
 
     [Parameter] public int? Id { get; set; }
 
@@ -292,6 +329,36 @@ else
         _model!.NewImageData = null;
         _model.NewImageContentType = null;
         _model.RemoveImage = true;
+    }
+
+    private async Task ImportAsync()
+    {
+        _importing = true;
+        _importError = null;
+        try
+        {
+            var imported = await Importer.ImportAsync(_importUrl ?? "");
+            // Replace the recipe text but keep anything else already chosen on this page.
+            _model!.Title = imported.Title;
+            _model.Description = imported.Description;
+            _model.Ingredients = imported.Ingredients;
+            _model.Steps = imported.Steps;
+            _model.Tags = imported.Tags;
+            _errors = [];
+            Snackbar.Add($"Added {imported.Title}. Check it over, then save.", Severity.Success);
+        }
+        catch (RecipeImportException ex)
+        {
+            _importError = ex.Message;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            _importError = "Something went wrong reading that recipe. Please try again.";
+        }
+        finally
+        {
+            _importing = false;
+        }
     }
 
     private async Task SaveAsync()

@@ -1,6 +1,6 @@
 namespace CookHub.Data.Entities;
 
-// One ingredient line, e.g. "1 cup" + "carrot" + "diced".
+// One ingredient line, e.g. "1 cup" + "carrot" + "diced". The amount is optional ("salt", "pepper").
 public class RecipeIngredient
 {
     public const int AmountMaxLength = 50;
@@ -14,7 +14,7 @@ public class RecipeIngredient
     public int IngredientId { get; set; }
     public Ingredient? Ingredient { get; set; }
 
-    public string Amount { get; set; } = "";
+    public string? Amount { get; set; }
     public string? Preparation { get; set; }
     public int SortOrder { get; set; }
 }

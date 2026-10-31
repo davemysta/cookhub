@@ -16,7 +16,7 @@ public class RecipeServiceTests
     }
 
     [Fact]
-    public void Validate_requires_amount_and_looked_up_ingredient_but_not_preparation()
+    public void Validate_requires_a_looked_up_ingredient_but_not_amount_or_preparation()
     {
         var model = new RecipeEditModel
         {
@@ -32,7 +32,27 @@ public class RecipeServiceTests
 
         var errors = model.Validate();
 
-        Assert.Equal(["Ingredient 2: an amount is required.", "Ingredient 3: look up and select an ingredient."], errors);
+        Assert.Equal(["Ingredient 3: look up and select an ingredient."], errors);
+    }
+
+    [Fact]
+    public async Task SaveAsync_stores_a_blank_amount_as_no_amount()
+    {
+        using var db = new TestDb();
+        var app = db.As(db.AddUser("Dave"));
+        var salt = await app.Lookups.GetOrCreateIngredientAsync("salt");
+
+        var id = await app.Recipes.SaveAsync(new RecipeEditModel
+        {
+            Title = "Fries",
+            Steps = [new() { Instruction = "Fry." }],
+            Ingredients = [new() { Amount = "  ", Ingredient = salt, Preparation = "to taste" }],
+        });
+
+        var line = Assert.Single((await app.Recipes.GetAsync(id))!.Ingredients);
+        Assert.Null(line.Amount);
+        Assert.Equal("salt", line.Name);
+        Assert.Equal("to taste", line.Preparation);
     }
 
     [Fact]

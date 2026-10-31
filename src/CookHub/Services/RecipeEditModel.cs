@@ -22,7 +22,7 @@ public sealed class RecipeEditModel
 
     public sealed class IngredientRow
     {
-        public string Amount { get; set; } = "";
+        public string? Amount { get; set; }
         public LookupItem? Ingredient { get; set; }
         public string? Preparation { get; set; }
     }
@@ -64,11 +64,7 @@ public sealed class RecipeEditModel
         for (var i = 0; i < ingredients.Count; i++)
         {
             var row = ingredients[i];
-            if (string.IsNullOrWhiteSpace(row.Amount))
-            {
-                errors.Add($"Ingredient {i + 1}: an amount is required.");
-            }
-            else if (row.Amount.Trim().Length > RecipeIngredient.AmountMaxLength)
+            if (row.Amount?.Trim().Length > RecipeIngredient.AmountMaxLength)
             {
                 errors.Add($"Ingredient {i + 1}: the amount can be at most {RecipeIngredient.AmountMaxLength} characters.");
             }

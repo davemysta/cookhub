@@ -219,7 +219,7 @@ public sealed class RecipeService(IDbContextFactory<ApplicationDbContext> dbFact
             .Select((row, index) => new RecipeIngredient
             {
                 IngredientId = row.Ingredient!.Id,
-                Amount = row.Amount.Trim(),
+                Amount = string.IsNullOrWhiteSpace(row.Amount) ? null : row.Amount.Trim(),
                 Preparation = string.IsNullOrWhiteSpace(row.Preparation) ? null : row.Preparation.Trim(),
                 SortOrder = index,
             })
