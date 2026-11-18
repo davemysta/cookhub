@@ -57,11 +57,7 @@ builder.Services.AddScoped<RecipeService>();
 builder.Services.AddScoped<MealPlanService>();
 builder.Services.AddScoped<RecipeListState>();
 
-// Adding recipes from a link calls the Claude API. The key comes from user secrets in development
-// and from an environment variable (Anthropic__ApiKey) on the server; see README.md.
-builder.Services.Configure<AnthropicOptions>(builder.Configuration.GetSection(AnthropicOptions.SectionName));
-// Claude fetches and reads the page, which can take a minute or two.
-builder.Services.AddHttpClient<RecipeImportService>(client => client.Timeout = TimeSpan.FromMinutes(5));
+builder.Services.AddScoped<RecipeImportService>();
 
 var app = builder.Build();
 

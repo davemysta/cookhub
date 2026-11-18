@@ -2,7 +2,7 @@
 
 A personal recipe box, weekly meal planner, shopping list and pantry tracker for a home network.
 
-Built with ASP.NET Core Blazor Server (.NET 10), MudBlazor 9, EF Core 10 and SQL Server. Recipes can be imported from a web page with the Claude API.
+Built with ASP.NET Core Blazor Server (.NET 10), MudBlazor 9, EF Core 10 and SQL Server. Recipes can be filled in from pasted JSON.
 
 > CookHub is meant for **personal use** on your own home server.
 
@@ -10,7 +10,7 @@ Built with ASP.NET Core Blazor Server (.NET 10), MudBlazor 9, EF Core 10 and SQL
 
 - [Features](#features)
 - [Running it locally](#running-it-locally)
-- [Setting up the Claude API key in Visual Studio](#setting-up-the-claude-api-key-in-visual-studio)
+- [Adding a recipe from JSON](#adding-a-recipe-from-json)
 - [Deploying to an Ubuntu home server](#deploying-to-an-ubuntu-home-server)
 - [Updating the app after it's deployed](#updating-the-app-after-its-deployed)
 - [Tests](#tests)
@@ -24,7 +24,7 @@ Built with ASP.NET Core Blazor Server (.NET 10), MudBlazor 9, EF Core 10 and SQL
   - Each ingredient line is an *ingredient* with an optional *amount* and optional *preparation*, e.g. `1 cup` · `carrot` · `diced`, or just `salt`.
   - Ingredients and tags are looked up by name. If a name doesn't exist yet, the autocomplete offers **Add "…"**, which saves it so it can be picked next time.
   - "Liked by" lists you and your family members as checkboxes, on both the edit page and the recipe page.
-- **Add from link**: on the **New recipe** page, paste a link to a recipe on any website and choose **Add recipe**. Claude reads the page, converts the recipe to CookHub's format (amounts, ingredients, preparation, steps and tags), and fills in the form. Check it over, then save. Requires a Claude API key ([see below](#setting-up-the-claude-api-key-in-visual-studio)).
+- **Convert from JSON**: on the **New recipe** page, open the **Convert from JSON** section, paste a recipe as JSON and choose **Convert JSON** to fill in the form. Check it over, then save ([see below](#adding-a-recipe-from-json)).
 - **Recipe list**: card or list view, search (title, description, tag or ingredient), filters for tags and "Liked by", sorting by title, newest or **most ingredients on hand**, and 50 recipes per page.
 - **Family**: add, rename and remove family members.
 - **On hand**: tick ingredients on a recipe or the shopping list, or add them directly. Remove anything you've run out of.
@@ -70,63 +70,37 @@ dotnet ef database update --project src/CookHub
 
 Then browse to the URL it prints, choose **Create an account** and start adding recipes.
 
-## Setting up the Claude API key in Visual Studio
+## Adding a recipe from JSON
 
-The **Add from link** feature calls the Claude API, which needs an API key. Keep the key out of the code and out of git: in development it lives in your **user secrets** file (`secrets.json`), which is stored in your Windows user profile, not in the project folder. On the server it lives in an environment file ([see below](#4-create-the-settings-file)).
+On the **New recipe** page, expand **Convert from JSON** above the title. The text area starts with a template showing the structure CookHub expects:
 
-### 1. Get an API key
-
-1. Sign in to the Claude Console at <https://platform.claude.com>.
-2. Add a payment method or credits under **Billing**. Each import is one Claude request and costs a few cents.
-3. Open **API keys**, choose **Create key**, name it e.g. `CookHub`, and copy the key (it starts with `sk-ant-`). You can't view it again later.
-
-### 2. Add it to user secrets
-
-1. Open `CookHub.slnx` in Visual Studio.
-2. In **Solution Explorer**, right-click the **CookHub** project (not the solution or the tests) and choose **Manage User Secrets**.
-3. Visual Studio opens `secrets.json`. Replace its contents with the following, pasting in your key:
-
-   ```json
-   {
-     "Anthropic": {
-       "ApiKey": "sk-ant-your-key-here"
-     }
-   }
-   ```
-
-   If you also keep a connection string here, put both in the same file:
-
-   ```json
-   {
-     "ConnectionStrings": {
-       "DefaultConnection": "Server=localhost,1433;Database=CookHub;User Id=sa;Password=<password>;TrustServerCertificate=True;MultipleActiveResultSets=true"
-     },
-     "Anthropic": {
-       "ApiKey": "sk-ant-your-key-here"
-     }
-   }
-   ```
-
-4. Save the file and run the app (**F5**). Go to **Recipes → New recipe**, paste a recipe link into **Add from link** and choose **Add recipe**.
-
-The file is saved at `%APPDATA%\Microsoft\UserSecrets\aspnet-CookHub-65410eaf-ccfd-4dd8-9abd-8847988c216f\secrets.json`. You can do the same from a terminal:
-
-```bash
-dotnet user-secrets set "Anthropic:ApiKey" "sk-ant-your-key-here" --project src/CookHub
+```json
+{
+  "title": "Street tacos",
+  "description": "Quick weeknight chicken tacos.",
+  "ingredients": [
+    { "amount": "1 lb", "name": "chicken thigh", "preparation": "diced" },
+    { "amount": "8", "name": "corn tortilla", "preparation": "warmed" },
+    { "amount": "", "name": "salt", "preparation": "to taste" }
+  ],
+  "steps": [
+    "Season the chicken with salt.",
+    "Cook the chicken in a hot pan until browned.",
+    "Serve in the warm tortillas."
+  ],
+  "tags": ["mexican", "dinner", "chicken"]
+}
 ```
 
-User secrets are only read when the app runs in the `Development` environment, which is what Visual Studio uses. A published app on the server ignores them.
+Replace it with your recipe and choose **Convert JSON**. **Restore template** puts the template back.
 
-### Optional settings
+- `title`, `ingredients` (each with a `name`) and `steps` fill the required fields. `description`, `tags`, and each ingredient's `amount` and `preparation` are optional; leave them out or use `""`.
+- Property names are matched ignoring case, and trailing commas and `//` comments are allowed. An `amount` can be a number, e.g. `"amount": 2`.
+- Text longer than a field allows is cut to fit, and blank ingredients, steps and tags are skipped.
+- Ingredients and tags are looked up by name, and any new names are added to the shared lists.
+- Converting replaces the title, description, ingredients, steps and tags on the form, but keeps the photo and "Liked by". Nothing is saved until you choose **Save recipe**.
 
-| Setting | Default | Meaning |
-|---|---|---|
-| `Anthropic:ApiKey` | *(none)* | Your Claude API key. Without it, **Add from link** shows a message asking for one; everything else works. |
-| `Anthropic:Model` | `claude-opus-5-5` | The Claude model used to read recipe pages. |
-
-### How importing works
-
-CookHub sends Claude the link along with instructions describing CookHub's recipe format. Claude fetches the page itself with its web fetch tool, which is limited to the recipe's own website, and replies with the recipe as structured JSON. CookHub then looks up each ingredient and tag by name, adds any new ones to the shared lists, and fills in the form. Nothing is saved until you choose **Save recipe**. Some websites block automated readers; if that happens you'll see a message and can enter the recipe by hand.
+If the JSON can't be read, a message says roughly where the problem is.
 
 ## Deploying to an Ubuntu home server
 
@@ -246,13 +220,12 @@ sudo mkdir -p /etc/cookhub
 sudo nano /etc/cookhub/cookhub.env
 ```
 
-Paste the following, filling in your SQL password and Claude API key, then save with **Ctrl+O**, **Enter**, **Ctrl+X**:
+Paste the following, filling in your SQL password, then save with **Ctrl+O**, **Enter**, **Ctrl+X**:
 
 ```ini
 ASPNETCORE_ENVIRONMENT=Production
 ASPNETCORE_URLS=http://0.0.0.0:5000
 ConnectionStrings__DefaultConnection=Server=localhost,1433;Database=CookHub;User Id=sa;Password=<a strong password>;TrustServerCertificate=True;MultipleActiveResultSets=true
-Anthropic__ApiKey=sk-ant-your-key-here
 ```
 
 Lock it down:
@@ -390,7 +363,7 @@ After that, updating is just `~/update-cookhub.sh`.
 dotnet test
 ```
 
-The tests exercise the service layer (search, filters, on-hand sorting, paging, likes, meal plans, shopping lists, per-user isolation, recipe import) against in-memory SQLite, so they don't need SQL Server. The recipe import tests use a fake Claude API, so they don't need an API key.
+The tests exercise the service layer (search, filters, on-hand sorting, paging, likes, meal plans, shopping lists, per-user isolation, recipe JSON conversion) against in-memory SQLite, so they don't need SQL Server.
 
 ## Design notes
 
@@ -403,7 +376,7 @@ Where the requirements left room for interpretation:
 - **Shopping list**: there's no separate list to maintain. It's worked out from the week's meal plan minus your on-hand ingredients, so ticking an item adds it to On hand. Amounts aren't totalled across recipes; each recipe's amount is listed, because free-text units like "1 cup" and "2 large" can't be added reliably.
 - **Ingredient amounts are optional**, for things like salt and pepper. A blank amount is stored as no amount.
 - **Ingredient and tag names** are matched ignoring case and extra spaces. Tags are stored in lower case.
-- **Add from link** fills in the form but doesn't save, so you can fix anything Claude got wrong. New ingredient and tag names it finds are added to the shared catalog straight away, even if you then don't save the recipe. The photo isn't imported.
+- **Convert from JSON** fills in the form but doesn't save, so you can check it first. New ingredient and tag names it finds are added to the shared catalog straight away, even if you then don't save the recipe.
 - **Photos**: JPEG, PNG, GIF or WebP up to 5 MB. SVG is refused, because it can contain script.
 - **Identity UI** is trimmed to login, register, profile (your display name for "Liked by") and change password. Email-based flows are removed because there's no email on a home server: confirmation, password reset, email change, 2FA, passkeys and external logins. Passwords need 6+ characters including a digit.
 
@@ -420,6 +393,6 @@ src/CookHub/
     Entities/       EF Core entities
     Migrations/
   Services/         Business logic; each operation uses a short-lived DbContext.
-                    RecipeImportService calls the Claude API for "Add from link".
+                    RecipeImportService converts pasted JSON for "Convert from JSON".
 tests/CookHub.Tests/
 ```

@@ -15,6 +15,40 @@
     @(IsNew ? "All recipes" : "Back to recipe")
 </MudButton>
 
+@if (IsNew && _model is not null)
+{
+    <MudExpansionPanels Outlined="true" Elevation="0" Class="mb-4">
+        <MudExpansionPanel>
+            <TitleContent>
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Filled.DataObject" Color="Color.Secondary" />
+                    <MudText Typo="Typo.h6">Convert from JSON</MudText>
+                </div>
+            </TitleContent>
+            <ChildContent>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+                    Paste a recipe as JSON, following the structure of the template below, then choose <b>Convert JSON</b>
+                    to fill in the form. Check it over, then save. <i>amount</i>, <i>preparation</i>, <i>description</i>
+                    and <i>tags</i> are optional; leave them out or use an empty string.
+                </MudText>
+                <MudTextField @bind-Value="_json" Label="Recipe JSON" Lines="16" Variant="Variant.Outlined"
+                              Immediate="true" Class="json-input" spellcheck="false" />
+                @if (_jsonError is not null)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">@_jsonError</MudAlert>
+                }
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Transform"
+                               OnClick="ConvertJsonAsync" Disabled="@(_converting || string.IsNullOrWhiteSpace(_json))">
+                        @(_converting ? "Converting…" : "Convert JSON")
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" OnClick="ResetJson" Disabled="_converting">Restore template</MudButton>
+                </div>
+            </ChildContent>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+}
+
 <MudText Typo="Typo.h4" Class="mb-4">@(IsNew ? "New recipe" : "Edit recipe")</MudText>
 
 @if (_model is null)
@@ -31,39 +65,6 @@
 else
 {
     <MudGrid Spacing="4">
-        @if (IsNew)
-        {
-            <MudItem xs="12">
-                <MudPaper Outlined="true" Class="pa-4">
-                    <div class="d-flex flex-wrap align-center gap-2">
-                        <MudTextField @bind-Value="_importUrl" Label="Add from link" Placeholder="https://example.com/best-ever-tacos"
-                                      Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" Disabled="_importing"
-                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Link"
-                                      InputType="InputType.Url" Class="flex-grow-1" Style="min-width: 260px;" />
-                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="ImportAsync"
-                                   Disabled="@(_importing || string.IsNullOrWhiteSpace(_importUrl))" Style="min-width: 150px;">
-                            @if (_importing)
-                            {
-                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                                <span>Reading page…</span>
-                            }
-                            else
-                            {
-                                <span>Add recipe</span>
-                            }
-                        </MudButton>
-                    </div>
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mt-1">
-                        Paste a link to a recipe and Claude will fill in the form below for you to check before saving. This can take up to a minute.
-                    </MudText>
-                    @if (_importError is not null)
-                    {
-                        <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">@_importError</MudAlert>
-                    }
-                </MudPaper>
-            </MudItem>
-        }
-
         <MudItem xs="12" md="8">
             <MudPaper Outlined="true" Class="pa-4 mb-4">
                 <MudTextField @bind-Value="_model.Title" Label="Title" Required="true" RequiredError="A title is required."
@@ -206,7 +207,7 @@ else
                 </MudAlert>
             }
             <div class="d-flex gap-2">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" Disabled="_saving || _readingImage || _importing" OnClick="SaveAsync">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" Disabled="_saving || _readingImage || _converting" OnClick="SaveAsync">
                     @(_saving ? "Saving…" : "Save recipe")
                 </MudButton>
                 <MudButton Variant="Variant.Text" Href="@(IsNew ? "recipes" : $"recipes/{Id}")">Cancel</MudButton>
@@ -222,9 +223,9 @@ else
     private bool _notFound;
     private bool _saving;
     private bool _readingImage;
-    private bool _importing;
-    private string? _importUrl;
-    private string? _importError;
+    private bool _converting;
+    private string? _json = RecipeImportService.Template;
+    private string? _jsonError;
 
     [Parameter] public int? Id { get; set; }
 
@@ -331,13 +332,19 @@ else
         _model.RemoveImage = true;
     }
 
-    private async Task ImportAsync()
+    private void ResetJson()
     {
-        _importing = true;
-        _importError = null;
+        _json = RecipeImportService.Template;
+        _jsonError = null;
+    }
+
+    private async Task ConvertJsonAsync()
+    {
+        _converting = true;
+        _jsonError = null;
         try
         {
-            var imported = await Importer.ImportAsync(_importUrl ?? "");
+            var imported = await Importer.ConvertAsync(_json);
             // Replace the recipe text but keep anything else already chosen on this page.
             _model!.Title = imported.Title;
             _model.Description = imported.Description;
@@ -345,19 +352,21 @@ else
             _model.Steps = imported.Steps;
             _model.Tags = imported.Tags;
             _errors = [];
-            Snackbar.Add($"Added {imported.Title}. Check it over, then save.", Severity.Success);
+            Snackbar.Add(string.IsNullOrWhiteSpace(imported.Title)
+                ? "Filled in the form. Check it over, then save."
+                : $"Filled in {imported.Title}. Check it over, then save.", Severity.Success);
         }
         catch (RecipeImportException ex)
         {
-            _importError = ex.Message;
+            _jsonError = ex.Message;
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
-            _importError = "Something went wrong reading that recipe. Please try again.";
+            _jsonError = "Something went wrong converting that recipe. Please try again.";
         }
         finally
         {
-            _importing = false;
+            _converting = false;
         }
     }
 
