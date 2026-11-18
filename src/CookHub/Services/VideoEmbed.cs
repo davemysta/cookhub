@@ -66,7 +66,7 @@ public sealed partial record VideoEmbed(VideoEmbedKind Kind, string Src)
             return null;
         }
 
-        var src = $"https://www.youtube-nocookie.com/embed/{id}";
+        var src = $"https://www.youtube.com/embed/{id}";
         var start = ParseSeconds(query.GetValueOrDefault("t") ?? query.GetValueOrDefault("start"));
         return new VideoEmbed(VideoEmbedKind.Player, start > 0 ? $"{src}?start={start}" : src);
     }
