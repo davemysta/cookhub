@@ -87,6 +87,42 @@ public class RecipeServiceTests
         Assert.Contains("The photo must be a JPEG, PNG, GIF or WebP image.", model.Validate());
     }
 
+    [Theory]
+    [InlineData("https://example.com/recipe")]
+    [InlineData("youtube.com/watch?v=dQw4w9WgXcQ")]
+    public void Validate_rejects_a_video_link_that_cannot_be_embedded(string videoUrl)
+    {
+        var model = new RecipeEditModel
+        {
+            Title = "Soup",
+            Steps = [new() { Instruction = "Simmer." }],
+            Ingredients = [new() { Amount = "1", Ingredient = new LookupItem(1, "milk") }],
+            VideoUrl = videoUrl,
+        };
+
+        Assert.Equal([$"The video link must be {VideoEmbed.SupportedDescription}."], model.Validate());
+    }
+
+    [Fact]
+    public async Task A_video_link_is_saved_trimmed_and_can_be_removed()
+    {
+        using var db = new TestDb();
+        var app = db.As(db.AddUser("Dave"));
+        var id = await app.AddRecipeAsync("Tacos", ["tortillas"]);
+        Assert.Null((await app.Recipes.GetAsync(id))!.VideoUrl);
+
+        var model = (await app.Recipes.GetForEditAsync(id))!;
+        model.VideoUrl = "  https://youtu.be/dQw4w9WgXcQ ";
+        await app.Recipes.SaveAsync(model);
+        Assert.Equal("https://youtu.be/dQw4w9WgXcQ", (await app.Recipes.GetAsync(id))!.VideoUrl);
+
+        model = (await app.Recipes.GetForEditAsync(id))!;
+        Assert.Equal("https://youtu.be/dQw4w9WgXcQ", model.VideoUrl);
+        model.VideoUrl = " ";
+        await app.Recipes.SaveAsync(model);
+        Assert.Null((await app.Recipes.GetAsync(id))!.VideoUrl);
+    }
+
     [Fact]
     public async Task SaveAsync_rejects_an_invalid_recipe()
     {

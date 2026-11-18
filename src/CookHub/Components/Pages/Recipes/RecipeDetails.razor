@@ -31,7 +31,14 @@ else
 
     <MudGrid Spacing="4">
         <MudItem xs="12" md="5">
-            <img src="@_recipe.ImageUrl" alt="@_recipe.Title" class="recipe-hero mb-4" />
+            @if (_video is not null)
+            {
+                <RecipeVideo Video="_video" Title="@($"{_recipe.Title} video")" Class="mb-4" />
+            }
+            else
+            {
+                <img src="@_recipe.ImageUrl" alt="@_recipe.Title" class="recipe-hero mb-4" />
+            }
 
             @if (!string.IsNullOrEmpty(_recipe.Description))
             {
@@ -108,6 +115,7 @@ else
 @code {
     private bool _loading = true;
     private RecipeDetailsModel? _recipe;
+    private VideoEmbed? _video;
     private List<RecipeIngredientLine> _ingredients = [];
     private List<LikedByEntry> _likedBy = [];
 
@@ -117,6 +125,7 @@ else
     {
         _loading = true;
         _recipe = await Recipes.GetAsync(Id);
+        _video = VideoEmbed.Parse(_recipe?.VideoUrl);
         _ingredients = _recipe?.Ingredients.ToList() ?? [];
         _likedBy = _recipe?.LikedBy.ToList() ?? [];
         _loading = false;

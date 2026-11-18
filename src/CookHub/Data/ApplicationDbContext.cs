@@ -30,6 +30,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             b.Property(r => r.Title).HasMaxLength(Recipe.TitleMaxLength).IsRequired();
             b.Property(r => r.Description).HasMaxLength(Recipe.DescriptionMaxLength);
+            b.Property(r => r.VideoUrl).HasMaxLength(Recipe.VideoUrlMaxLength);
             b.HasIndex(r => new { r.OwnerId, r.Title });
             b.HasOne(r => r.Owner).WithMany().HasForeignKey(r => r.OwnerId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(r => r.Image).WithOne(i => i.Recipe).HasForeignKey<RecipeImage>(i => i.RecipeId).OnDelete(DeleteBehavior.Cascade);

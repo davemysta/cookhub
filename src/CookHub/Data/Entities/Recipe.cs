@@ -4,6 +4,7 @@ public class Recipe
 {
     public const int TitleMaxLength = 200;
     public const int DescriptionMaxLength = 500;
+    public const int VideoUrlMaxLength = 500;
 
     public int Id { get; set; }
 
@@ -12,6 +13,9 @@ public class Recipe
 
     public string Title { get; set; } = "";
     public string? Description { get; set; }
+
+    // Optional YouTube, Vimeo or video-file link, shown on the recipe page instead of the photo.
+    public string? VideoUrl { get; set; }
 
     // The owner appears in "Liked by" next to their family members.
     public bool LikedByOwner { get; set; }

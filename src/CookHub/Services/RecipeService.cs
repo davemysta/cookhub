@@ -137,6 +137,7 @@ public sealed class RecipeService(IDbContextFactory<ApplicationDbContext> dbFact
             recipe.Title,
             recipe.Description,
             ImageUrls.ForRecipe(recipe.Id, hasImage, recipe.UpdatedUtc),
+            recipe.VideoUrl,
             recipe.Tags.OrderBy(t => t.Name).Select(t => new LookupItem(t.Id, t.Name)).ToList(),
             recipe.Ingredients
                 .OrderBy(i => i.SortOrder)
@@ -163,6 +164,7 @@ public sealed class RecipeService(IDbContextFactory<ApplicationDbContext> dbFact
             Id = details.Id,
             Title = details.Title,
             Description = details.Description,
+            VideoUrl = details.VideoUrl,
             Tags = details.Tags.ToList(),
             Ingredients = details.Ingredients
                 .Select(i => new RecipeEditModel.IngredientRow
@@ -212,6 +214,7 @@ public sealed class RecipeService(IDbContextFactory<ApplicationDbContext> dbFact
 
         recipe.Title = model.Title.Trim();
         recipe.Description = string.IsNullOrWhiteSpace(model.Description) ? null : model.Description.Trim();
+        recipe.VideoUrl = string.IsNullOrWhiteSpace(model.VideoUrl) ? null : model.VideoUrl.Trim();
         recipe.UpdatedUtc = now;
 
         db.RecipeIngredients.RemoveRange(recipe.Ingredients);
