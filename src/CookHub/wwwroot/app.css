@@ -74,3 +74,9 @@
     right: 0.75rem;
     top: 0.5rem;
 }
+
+/* Recipe JSON text area on the New recipe page. */
+.json-input textarea {
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    font-size: 0.875rem;
+}
