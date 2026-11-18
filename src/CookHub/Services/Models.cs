@@ -84,6 +84,7 @@ public sealed record RecipeDetailsModel(
     string Title,
     string? Description,
     string ImageUrl,
+    string? VideoUrl,
     IReadOnlyList<LookupItem> Tags,
     IReadOnlyList<RecipeIngredientLine> Ingredients,
     IReadOnlyList<string> Steps,

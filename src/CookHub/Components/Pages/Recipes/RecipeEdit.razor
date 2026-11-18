@@ -166,6 +166,22 @@ else
             </MudPaper>
 
             <MudPaper Outlined="true" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Video</MudText>
+                <MudTextField @bind-Value="_model.VideoUrl" Label="Video link (optional)" Placeholder="https://www.youtube.com/watch?v=…"
+                              MaxLength="Recipe.VideoUrlMaxLength" Immediate="true" DebounceInterval="300" Clearable="true"
+                              InputType="InputType.Url" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Error="@VideoLinkInvalid" ErrorText="@($"Use {VideoEmbed.SupportedDescription}.")" />
+                @if (VideoPreview is not null)
+                {
+                    <RecipeVideo Video="VideoPreview" Title="Video preview" Class="mt-2" />
+                }
+                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mt-1">
+                    A YouTube or Vimeo link, or a link to an MP4, WebM or Ogg file. When there's a video, it's shown on the recipe page
+                    instead of the photo; the photo is still used on recipe cards and the meal plan.
+                </MudText>
+            </MudPaper>
+
+            <MudPaper Outlined="true" Class="pa-4 mb-4">
                 <MudText Typo="Typo.h6" Class="mb-2">Tags</MudText>
                 <LookupAutocomplete ClearAfterSelect="true" OnSelected="AddTag" Placeholder="Search or add a tag, e.g. mexican"
                                     Search="Lookups.SearchTagsAsync" Create="Lookups.GetOrCreateTagAsync"
@@ -237,6 +253,10 @@ else
         { RemoveImage: false, ExistingImageUrl: not null } m => m.ExistingImageUrl,
         _ => ImageUrls.Placeholder,
     };
+
+    private VideoEmbed? VideoPreview => VideoEmbed.Parse(_model?.VideoUrl);
+
+    private bool VideoLinkInvalid => !string.IsNullOrWhiteSpace(_model?.VideoUrl) && VideoPreview is null;
 
     protected override async Task OnParametersSetAsync()
     {

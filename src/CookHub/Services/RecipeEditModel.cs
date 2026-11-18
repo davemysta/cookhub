@@ -7,6 +7,7 @@ public sealed class RecipeEditModel
     public int Id { get; set; }
     public string Title { get; set; } = "";
     public string? Description { get; set; }
+    public string? VideoUrl { get; set; }
     public List<LookupItem> Tags { get; set; } = [];
     public List<IngredientRow> Ingredients { get; set; } = [];
     public List<StepRow> Steps { get; set; } = [];
@@ -53,6 +54,18 @@ public sealed class RecipeEditModel
         if (Description?.Trim().Length > Recipe.DescriptionMaxLength)
         {
             errors.Add($"The description can be at most {Recipe.DescriptionMaxLength} characters.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(VideoUrl))
+        {
+            if (VideoUrl.Trim().Length > Recipe.VideoUrlMaxLength)
+            {
+                errors.Add($"The video link can be at most {Recipe.VideoUrlMaxLength} characters.");
+            }
+            else if (VideoEmbed.Parse(VideoUrl) is null)
+            {
+                errors.Add($"The video link must be {VideoEmbed.SupportedDescription}.");
+            }
         }
 
         var ingredients = FilledIngredients.ToList();

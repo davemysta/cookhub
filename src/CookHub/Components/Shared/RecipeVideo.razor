@@ -1,0 +1,22 @@
+@* Plays a recipe's video: YouTube and Vimeo in their own player, video files in the browser's player. *@
+
+@if (Video is { Kind: VideoEmbedKind.Player })
+{
+    <div class="recipe-video @Class">
+        <iframe src="@Video.Src" title="@Title" loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+    </div>
+}
+else if (Video is { Kind: VideoEmbedKind.File })
+{
+    <div class="recipe-video @Class">
+        <video src="@Video.Src" title="@Title" controls preload="metadata" playsinline></video>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public VideoEmbed? Video { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

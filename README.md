@@ -20,7 +20,8 @@ Built with ASP.NET Core Blazor Server (.NET 10), MudBlazor 9, EF Core 10 and SQL
 ## Features
 
 - **Accounts**: every page requires login. Anyone on the network can register, with no email confirmation, and is signed straight in.
-- **Recipes**: title, description (up to 500 characters), an optional photo (a stock image is used otherwise), ingredients, steps, tags and "Liked by".
+- **Recipes**: title, description (up to 500 characters), an optional photo (a stock image is used otherwise), an optional video link, ingredients, steps, tags and "Liked by".
+  - If a recipe has a video link, the recipe page shows an embedded video player in place of the photo. Recipe cards and the meal plan still use the photo.
   - Each ingredient line is an *ingredient* with an optional *amount* and optional *preparation*, e.g. `1 cup` · `carrot` · `diced`, or just `salt`.
   - Ingredients and tags are looked up by name. If a name doesn't exist yet, the autocomplete offers **Add "…"**, which saves it so it can be picked next time.
   - "Liked by" lists you and your family members as checkboxes, on both the edit page and the recipe page.
@@ -378,6 +379,7 @@ Where the requirements left room for interpretation:
 - **Ingredient and tag names** are matched ignoring case and extra spaces. Tags are stored in lower case.
 - **Convert from JSON** fills in the form but doesn't save, so you can check it first. New ingredient and tag names it finds are added to the shared catalog straight away, even if you then don't save the recipe.
 - **Photos**: JPEG, PNG, GIF or WebP up to 5 MB. SVG is refused, because it can contain script.
+- **Video links** can be YouTube (watch, `youtu.be`, Shorts, live or embed links, keeping a `t=` start time), Vimeo (including unlisted links), or a direct link to an MP4, WebM or Ogg file. Other links are refused rather than embedded, so the app never frames arbitrary web pages. YouTube videos play from `youtube-nocookie.com`. The video is streamed from its site, so the browser needs internet access to play it, and it isn't included in database backups.
 - **Identity UI** is trimmed to login, register, profile (your display name for "Liked by") and change password. Email-based flows are removed because there's no email on a home server: confirmation, password reset, email change, 2FA, passkeys and external logins. Passwords need 6+ characters including a digit.
 
 ## Project layout
