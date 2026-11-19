@@ -79,6 +79,9 @@ public sealed record RecipeSummary(
 
 public sealed record RecipeIngredientLine(int IngredientId, string Name, string? Amount, string? Preparation, bool OnHand);
 
+// VideoSeconds is where the step starts in the recipe's video, if the cook marked it.
+public sealed record RecipeStepLine(string Instruction, int? VideoSeconds);
+
 public sealed record RecipeDetailsModel(
     int Id,
     string Title,
@@ -87,7 +90,7 @@ public sealed record RecipeDetailsModel(
     string? VideoUrl,
     IReadOnlyList<LookupItem> Tags,
     IReadOnlyList<RecipeIngredientLine> Ingredients,
-    IReadOnlyList<string> Steps,
+    IReadOnlyList<RecipeStepLine> Steps,
     IReadOnlyList<LikedByEntry> LikedBy,
     DateTime CreatedUtc,
     DateTime UpdatedUtc);

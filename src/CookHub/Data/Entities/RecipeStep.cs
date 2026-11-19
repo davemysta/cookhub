@@ -11,4 +11,7 @@ public class RecipeStep
 
     public int StepNumber { get; set; }
     public string Instruction { get; set; } = "";
+
+    // Where this step starts in the recipe's video, in seconds from the beginning.
+    public int? VideoSeconds { get; set; }
 }

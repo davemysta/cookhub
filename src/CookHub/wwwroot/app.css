@@ -98,3 +98,27 @@
     font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
     font-size: 0.875rem;
 }
+
+.step-edit-fields {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.step-edit-fields .step-instruction-input {
+    flex: 1 1 260px;
+}
+
+.step-edit-fields .step-time-input {
+    flex: 0 0 140px;
+    max-width: 140px;
+}
+
+.step-video-time {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    font-variant-numeric: tabular-nums;
+}

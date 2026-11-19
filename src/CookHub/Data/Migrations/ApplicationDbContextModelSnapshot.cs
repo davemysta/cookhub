@@ -318,6 +318,9 @@ namespace CookHub.Data.Migrations
                     b.Property<int>("StepNumber")
                         .HasColumnType("int");
 
+                    b.Property<int?>("VideoSeconds")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("RecipeId");

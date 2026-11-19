@@ -124,6 +124,38 @@ public class RecipeServiceTests
     }
 
     [Fact]
+    public void Validate_rejects_a_step_video_time_that_is_not_minutes_and_seconds()
+    {
+        var model = new RecipeEditModel
+        {
+            Title = "Soup",
+            Steps = [new() { Instruction = "Chop.", VideoTime = "01:15" }, new() { Instruction = "Simmer.", VideoTime = "90" }],
+            Ingredients = [new() { Amount = "1", Ingredient = new LookupItem(1, "milk") }],
+        };
+
+        Assert.Equal(["Step 2: the video time must be minutes and seconds, like 00:00 or 12:30."], model.Validate());
+    }
+
+    [Fact]
+    public async Task Step_video_times_are_saved_as_seconds_and_shown_as_minutes_and_seconds()
+    {
+        using var db = new TestDb();
+        var app = db.As(db.AddUser("Dave"));
+        var id = await app.AddRecipeAsync("Tacos", ["tortillas"]);
+
+        var model = (await app.Recipes.GetForEditAsync(id))!;
+        model.VideoUrl = "https://youtu.be/dQw4w9WgXcQ";
+        model.Steps = [new() { Instruction = "Warm.", VideoTime = "1:05" }, new() { Instruction = "Fill." }];
+        await app.Recipes.SaveAsync(model);
+
+        var steps = (await app.Recipes.GetAsync(id))!.Steps;
+        Assert.Equal([new RecipeStepLine("Warm.", 65), new RecipeStepLine("Fill.", null)], steps);
+
+        model = (await app.Recipes.GetForEditAsync(id))!;
+        Assert.Equal(["01:05", null], model.Steps.Select(s => s.VideoTime));
+    }
+
+    [Fact]
     public async Task SaveAsync_rejects_an_invalid_recipe()
     {
         using var db = new TestDb();

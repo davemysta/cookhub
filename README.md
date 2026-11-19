@@ -22,6 +22,7 @@ Built with ASP.NET Core Blazor Server (.NET 10), MudBlazor 9, EF Core 10 and SQL
 - **Accounts**: every page requires login. Anyone on the network can register, with no email confirmation, and is signed straight in.
 - **Recipes**: title, description (up to 500 characters), an optional photo (a stock image is used otherwise), an optional video link, ingredients, steps, tags and "Liked by".
   - If a recipe has a video link, the recipe page shows an embedded video player in place of the photo. Recipe cards and the meal plan still use the photo.
+  - Each step can have an optional video time (mm:ss, e.g. `02:15`). When the recipe has a video, the step shows a play button on the recipe page that jumps the video to that time and plays it.
   - Each ingredient line is an *ingredient* with an optional *amount* and optional *preparation*, e.g. `1 cup` · `carrot` · `diced`, or just `salt`.
   - Ingredients and tags are looked up by name. If a name doesn't exist yet, the autocomplete offers **Add "…"**, which saves it so it can be picked next time.
   - "Liked by" lists you and your family members as checkboxes, on both the edit page and the recipe page.

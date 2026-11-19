@@ -33,7 +33,7 @@ else
         <MudItem xs="12" md="5">
             @if (_video is not null)
             {
-                <RecipeVideo Video="_video" Title="@($"{_recipe.Title} video")" Class="mb-4" />
+                <RecipeVideo @ref="_player" Video="_video" Title="@($"{_recipe.Title} video")" Class="mb-4" />
             }
             else
             {
@@ -104,7 +104,16 @@ else
                 {
                     <div class="d-flex gap-3 mb-4">
                         <div class="step-number">@(index + 1)</div>
-                        <MudText Style="white-space: pre-line; padding-top: 4px;">@step</MudText>
+                        <MudText Class="flex-grow-1" Style="white-space: pre-line; padding-top: 4px;">@step.Instruction</MudText>
+                        @if (_video is not null && step.VideoSeconds is { } seconds)
+                        {
+                            var time = StepTime.Format(seconds);
+                            <MudTooltip Text="@($"Play the video from {time}")">
+                                <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="step-video-time"
+                                           StartIcon="@Icons.Material.Filled.PlayCircle" aria-label="@($"Play step {index + 1} in the video, from {time}")"
+                                           OnClick="@(() => SeekAsync(seconds))">@time</MudButton>
+                            </MudTooltip>
+                        }
                     </div>
                 }
             </MudPaper>
@@ -116,6 +125,7 @@ else
     private bool _loading = true;
     private RecipeDetailsModel? _recipe;
     private VideoEmbed? _video;
+    private RecipeVideo? _player;
     private List<RecipeIngredientLine> _ingredients = [];
     private List<LikedByEntry> _likedBy = [];
 
@@ -143,6 +153,8 @@ else
         await Recipes.SetLikedAsync(Id, entry.Person.FamilyMemberId, liked);
         _likedBy = _likedBy.Select(e => e == entry ? e with { Liked = liked } : e).ToList();
     }
+
+    private Task SeekAsync(int seconds) => _player?.SeekAsync(seconds) ?? Task.CompletedTask;
 
     private Task AddToPlanAsync() => AddToMealPlanDialog.ShowAsync(Dialogs, Id, _recipe!.Title);
 
