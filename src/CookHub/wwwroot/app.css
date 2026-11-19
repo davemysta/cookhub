@@ -122,3 +122,235 @@
     align-self: flex-start;
     font-variant-numeric: tabular-nums;
 }
+
+/* Cooking mode: a full-window layout over the app (no navigation).
+   Video top left, ingredients bottom left, steps down the right; each panel scrolls on its own.
+   The recipe's video player is not moved in the page (that would reload it); it is positioned over the
+   top-left slot with the same measurements, so these variables are shared. */
+:root {
+    --cook-bar: 52px;
+    --cook-gap: 8px;
+}
+
+html.cooking-mode-open,
+html.cooking-mode-open body {
+    overflow: hidden;
+}
+
+.cooking-mode {
+    position: fixed;
+    inset: 0;
+    z-index: 1350;
+    display: flex;
+    flex-direction: column;
+    background: var(--mud-palette-background);
+}
+
+.cooking-bar {
+    flex: 0 0 var(--cook-bar);
+    height: var(--cook-bar);
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px 0 16px;
+    background: var(--mud-palette-surface);
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+}
+
+.cooking-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    margin-left: 8px;
+}
+
+.cooking-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+        "video steps"
+        "ingredients steps";
+    gap: var(--cook-gap);
+    padding: var(--cook-gap);
+}
+
+.cooking-video-slot {
+    grid-area: video;
+    min-height: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+}
+
+.cooking-video-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.cooking-ingredients {
+    grid-area: ingredients;
+}
+
+.cooking-steps {
+    grid-area: steps;
+}
+
+.cooking-panel {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.cooking-panel-header {
+    flex: 0 0 auto;
+    padding: 12px 16px 8px;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+}
+
+.cooking-panel-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 8px 16px;
+}
+
+.cooking-steps .cooking-panel-body {
+    padding-top: 16px;
+}
+
+/* Larger text for reading at a distance. */
+.cooking-panel-body .ingredient-text,
+.cooking-panel-body .step-text {
+    font-size: 1.1rem;
+}
+
+.recipe-video.cooking-video {
+    position: fixed;
+    z-index: 1351;
+    top: calc(var(--cook-bar) + var(--cook-gap));
+    left: var(--cook-gap);
+    width: calc((100% - 3 * var(--cook-gap)) / 2);
+    height: calc((100% - var(--cook-bar) - 3 * var(--cook-gap)) / 2);
+    aspect-ratio: auto;
+    margin: 0 !important;
+}
+
+.step-number-button {
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 500;
+}
+
+.step-number-button:focus-visible {
+    outline: 2px solid var(--mud-palette-secondary);
+    outline-offset: 2px;
+}
+
+.step-done .step-number-button {
+    background: var(--mud-palette-success);
+    color: var(--mud-palette-success-text);
+}
+
+.step-done .step-text {
+    color: var(--mud-palette-text-secondary);
+    text-decoration: line-through;
+}
+
+/* Cooking mode: ingredients are tapped (not ticked) once prepped. */
+.cooking-ingredient-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.cooking-ingredient {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    padding: 8px 4px 8px 8px;
+    border: 0;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cooking-ingredient:last-child {
+    border-bottom: 0;
+}
+
+.cooking-ingredient:hover {
+    background: var(--mud-palette-action-default-hover);
+}
+
+.cooking-ingredient:focus-visible {
+    outline: 2px solid var(--mud-palette-secondary);
+    outline-offset: -2px;
+}
+
+.cooking-ingredient .ingredient-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.cooking-ingredient-check {
+    flex: 0 0 28px;
+    display: flex;
+    justify-content: center;
+}
+
+/* Bigger tap targets for the step numbers and video buttons on tablets. */
+.cooking-steps .step-number {
+    width: 44px;
+    height: 44px;
+    font-size: 1.15rem;
+}
+
+.cooking-steps .step-number-button .mud-icon-root {
+    font-size: 1.6rem;
+}
+
+.cooking-steps .step-text {
+    padding-top: 10px !important;
+}
+
+.cooking-steps .step-video-time {
+    min-height: 44px;
+    font-size: 1rem;
+}
+
+.cooking-steps .step-video-time .mud-button-icon-start .mud-icon-root {
+    font-size: 1.9rem;
+}
+
+/* Phones held upright: stack video, ingredients and steps. */
+@media (max-width: 700px) and (orientation: portrait) {
+    .cooking-grid {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 3fr) minmax(0, 2.5fr) minmax(0, 4.5fr);
+        grid-template-areas:
+            "video"
+            "ingredients"
+            "steps";
+    }
+
+    .recipe-video.cooking-video {
+        width: calc(100% - 2 * var(--cook-gap));
+        height: calc((100% - var(--cook-bar) - 4 * var(--cook-gap)) * 0.3);
+    }
+}
