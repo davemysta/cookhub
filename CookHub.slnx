@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+    <File Path="Scripts/migration.sql" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/CookHub/CookHub.csproj" />
   </Folder>
