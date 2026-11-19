@@ -4,6 +4,8 @@
 @inject NavigationManager Navigation
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <PageTitle>@(_recipe?.Title ?? "Recipe") · CookHub</PageTitle>
 
@@ -22,6 +24,7 @@ else
     <div class="d-flex align-center flex-wrap gap-2 mb-4">
         <MudText Typo="Typo.h4">@_recipe.Title</MudText>
         <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.SoupKitchen" OnClick="EnterCookingModeAsync">Cooking Mode</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.EventAvailable" OnClick="AddToPlanAsync">Add to meal plan</MudButton>
         <MudButton Href="@($"recipes/{Id}/edit")" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Edit">Edit</MudButton>
         <MudTooltip Text="Delete recipe">
@@ -33,7 +36,8 @@ else
         <MudItem xs="12" md="5">
             @if (_video is not null)
             {
-                <RecipeVideo @ref="_player" Video="_video" Title="@($"{_recipe.Title} video")" Class="mb-4" />
+                @* Cooking mode moves this same player into its top-left panel with CSS, so the video keeps playing. *@
+                <RecipeVideo @ref="_player" Video="_video" Title="@($"{_recipe.Title} video")" Class="@(_cooking ? "cooking-video" : "mb-4")" />
             }
             else
             {
@@ -75,50 +79,77 @@ else
         </MudItem>
 
         <MudItem xs="12" md="7">
-            <MudPaper Outlined="true" Class="pa-4 mb-4">
-                <div class="d-flex align-center flex-wrap gap-2">
-                    <MudText Typo="Typo.h6">Ingredients</MudText>
-                    <MudSpacer />
-                    <MudText Typo="Typo.body2" Class="mud-text-secondary">@_ingredients.Count(i => i.OnHand) of @_ingredients.Count on hand</MudText>
-                </div>
-                <MudText Typo="Typo.caption" Class="mud-text-secondary">Tick what you already have and it's added to your <MudLink Href="on-hand" Typo="Typo.caption">On hand</MudLink> list.</MudText>
-                <MudList T="string" Dense="true" Class="mt-2">
-                    @foreach (var line in _ingredients)
-                    {
-                        <MudListItem T="string">
-                            <div class="d-flex align-center">
-                                <MudCheckBox T="bool" Value="line.OnHand" ValueChanged="@(onHand => SetOnHandAsync(line, onHand))" Color="Color.Success" Dense="true"
-                                             aria-label="@($"I have {line.Name}")" />
-                                <span class="@(line.OnHand ? "on-hand-text" : null)">
-                                    @if (!string.IsNullOrEmpty(line.Amount)) { <b>@line.Amount</b>@(" ") }@line.Name@(string.IsNullOrEmpty(line.Preparation) ? "" : $", {line.Preparation}")
-                                </span>
-                            </div>
-                        </MudListItem>
-                    }
-                </MudList>
-            </MudPaper>
+            @if (!_cooking)
+            {
+                <MudPaper Outlined="true" Class="pa-4 mb-4">
+                    @IngredientsHeader
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Tick what you already have and it's added to your <MudLink Href="on-hand" Typo="Typo.caption">On hand</MudLink> list.</MudText>
+                    @IngredientsList
+                </MudPaper>
 
-            <MudPaper Outlined="true" Class="pa-4">
-                <MudText Typo="Typo.h6" Class="mb-3">Steps</MudText>
-                @foreach (var (step, index) in _recipe.Steps.Select((step, index) => (step, index)))
-                {
-                    <div class="d-flex gap-3 mb-4">
-                        <div class="step-number">@(index + 1)</div>
-                        <MudText Class="flex-grow-1" Style="white-space: pre-line; padding-top: 4px;">@step.Instruction</MudText>
-                        @if (_video is not null && step.VideoSeconds is { } seconds)
-                        {
-                            var time = StepTime.Format(seconds);
-                            <MudTooltip Text="@($"Play the video from {time}")">
-                                <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="step-video-time"
-                                           StartIcon="@Icons.Material.Filled.PlayCircle" aria-label="@($"Play step {index + 1} in the video, from {time}")"
-                                           OnClick="@(() => SeekAsync(seconds))">@time</MudButton>
-                            </MudTooltip>
-                        }
-                    </div>
-                }
-            </MudPaper>
+                <MudPaper Outlined="true" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-3">Steps</MudText>
+                    @StepsList
+                </MudPaper>
+            }
         </MudItem>
     </MudGrid>
+
+    @if (_cooking)
+    {
+        <div class="cooking-mode" role="dialog" aria-modal="true" aria-label="@($"Cooking {_recipe.Title}")">
+            <div class="cooking-bar">
+                <MudIcon Icon="@Icons.Material.Filled.SoupKitchen" Color="Color.Secondary" />
+                <MudText Typo="Typo.subtitle1" Class="cooking-title">@_recipe.Title</MudText>
+                <MudSpacer />
+                @if (_doneSteps.Count > 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary d-none d-sm-flex">@_doneSteps.Count of @_recipe.Steps.Count steps done</MudText>
+                    <MudTooltip Text="Clear the ticked steps">
+                        <MudIconButton Icon="@Icons.Material.Filled.RestartAlt" Size="Size.Small" aria-label="Clear the ticked steps" OnClick="@(() => _doneSteps.Clear())" />
+                    </MudTooltip>
+                }
+                @if (_wakeLockSupported)
+                {
+                    <MudTooltip Text="@(_screenAwake ? "The screen will stay on" : "Couldn't keep the screen on; it may turn off as usual")">
+                        <MudIcon Icon="@(_screenAwake ? Icons.Material.Filled.LightMode : Icons.Material.Outlined.Bedtime)"
+                                 Color="@(_screenAwake ? Color.Warning : Color.Default)" Size="Size.Small" Class="mx-1"
+                                 aria-label="@(_screenAwake ? "Screen stays on" : "Screen may turn off")" />
+                    </MudTooltip>
+                }
+                @if (_fullscreenSupported)
+                {
+                    <MudTooltip Text="@(_fullscreen ? "Leave full screen" : "Full screen")">
+                        <MudIconButton Icon="@(_fullscreen ? Icons.Material.Filled.FullscreenExit : Icons.Material.Filled.Fullscreen)" Size="Size.Small"
+                                       aria-label="@(_fullscreen ? "Leave full screen" : "Full screen")" OnClick="ToggleFullscreenAsync" />
+                    </MudTooltip>
+                }
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Close"
+                           OnClick="ExitCookingModeAsync" Class="ml-1 text-nowrap">
+                    <span class="d-none d-sm-inline">Exit cooking mode</span><span class="d-sm-none">Exit</span>
+                </MudButton>
+            </div>
+            <div class="cooking-grid">
+                <div class="cooking-video-slot">
+                    @if (_video is null)
+                    {
+                        <img src="@_recipe.ImageUrl" alt="@_recipe.Title" />
+                    }
+                </div>
+                <MudPaper Outlined="true" Class="cooking-panel cooking-ingredients">
+                    <div class="cooking-panel-header">@IngredientsHeader</div>
+                    <div class="cooking-panel-body">@IngredientsList</div>
+                </MudPaper>
+                <MudPaper Outlined="true" Class="cooking-panel cooking-steps">
+                    <div class="cooking-panel-header">
+                        <MudText Typo="Typo.h6">Steps</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Tap a step's number to tick it off.</MudText>
+                    </div>
+                    <div class="cooking-panel-body">@StepsList</div>
+                </MudPaper>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -129,11 +160,22 @@ else
     private List<RecipeIngredientLine> _ingredients = [];
     private List<LikedByEntry> _likedBy = [];
 
+    // Cooking mode
+    private bool _cooking;
+    private bool _fullscreen;
+    private bool _fullscreenSupported;
+    private bool _screenAwake;
+    private bool _wakeLockSupported;
+    private readonly HashSet<int> _doneSteps = [];
+    private IJSObjectReference? _cookingModule;
+    private DotNetObjectReference<RecipeDetails>? _selfRef;
+
     [Parameter] public int Id { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
+        _doneSteps.Clear();
         _recipe = await Recipes.GetAsync(Id);
         _video = VideoEmbed.Parse(_recipe?.VideoUrl);
         _ingredients = _recipe?.Ingredients.ToList() ?? [];
@@ -153,6 +195,165 @@ else
         await Recipes.SetLikedAsync(Id, entry.Person.FamilyMemberId, liked);
         _likedBy = _likedBy.Select(e => e == entry ? e with { Liked = liked } : e).ToList();
     }
+
+    private RenderFragment IngredientsHeader => @<div class="d-flex align-center flex-wrap gap-2">
+        <MudText Typo="Typo.h6">Ingredients</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">@_ingredients.Count(i => i.OnHand) of @_ingredients.Count on hand</MudText>
+    </div>;
+
+    private RenderFragment IngredientsList => @<MudList T="string" Dense="true" Class="mt-2">
+        @foreach (var line in _ingredients)
+        {
+            <MudListItem T="string">
+                <div class="d-flex align-center">
+                    <MudCheckBox T="bool" Value="line.OnHand" ValueChanged="@(onHand => SetOnHandAsync(line, onHand))" Color="Color.Success" Dense="true"
+                                 aria-label="@($"I have {line.Name}")" />
+                    <span class="ingredient-text @(line.OnHand ? "on-hand-text" : null)">
+                        @if (!string.IsNullOrEmpty(line.Amount)) { <b>@line.Amount</b>@(" ") }@line.Name@(string.IsNullOrEmpty(line.Preparation) ? "" : $", {line.Preparation}")
+                    </span>
+                </div>
+            </MudListItem>
+        }
+    </MudList>;
+
+    private RenderFragment StepsList => @<div>
+        @foreach (var (step, index) in _recipe!.Steps.Select((step, index) => (step, index)))
+        {
+            var done = _cooking && _doneSteps.Contains(index);
+            <div class="d-flex gap-3 mb-4 @(done ? "step-done" : null)">
+                @if (_cooking)
+                {
+                    <button type="button" class="step-number step-number-button" aria-pressed="@(done ? "true" : "false")"
+                            aria-label="@($"Step {index + 1}: {(done ? "done, tap to untick" : "tap when done")}")"
+                            @onclick="@(() => ToggleStepDone(index))">
+                        @if (done)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
+                        }
+                        else
+                        {
+                            @(index + 1)
+                        }
+                    </button>
+                }
+                else
+                {
+                    <div class="step-number">@(index + 1)</div>
+                }
+                <MudText Class="flex-grow-1 step-text" Style="white-space: pre-line; padding-top: 4px;">@step.Instruction</MudText>
+                @if (_video is not null && step.VideoSeconds is { } seconds)
+                {
+                    var time = StepTime.Format(seconds);
+                    <MudTooltip Text="@($"Play the video from {time}")">
+                        <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="step-video-time"
+                                   StartIcon="@Icons.Material.Filled.PlayCircle" aria-label="@($"Play step {index + 1} in the video, from {time}")"
+                                   OnClick="@(() => SeekAsync(seconds))">@time</MudButton>
+                    </MudTooltip>
+                }
+            </div>
+        }
+    </div>;
+
+    private void ToggleStepDone(int index)
+    {
+        if (!_doneSteps.Remove(index))
+        {
+            _doneSteps.Add(index);
+        }
+    }
+
+    private async Task EnterCookingModeAsync()
+    {
+        _cooking = true;
+        try
+        {
+            _cookingModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Pages/Recipes/RecipeDetails.razor.js");
+            _selfRef ??= DotNetObjectReference.Create(this);
+            var state = await _cookingModule.InvokeAsync<CookingModeState>("enter", _selfRef);
+            _fullscreenSupported = state.FullscreenSupported;
+            _fullscreen = state.Fullscreen;
+            _wakeLockSupported = state.WakeLockSupported;
+            _screenAwake = state.ScreenAwake;
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private async Task ExitCookingModeAsync()
+    {
+        _cooking = false;
+        _fullscreen = false;
+        _screenAwake = false;
+        if (_cookingModule is not null)
+        {
+            try
+            {
+                await _cookingModule.InvokeVoidAsync("leave");
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+
+    private async Task ToggleFullscreenAsync()
+    {
+        if (_cookingModule is not null)
+        {
+            try
+            {
+                _fullscreen = await _cookingModule.InvokeAsync<bool>("setFullscreen", !_fullscreen);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+
+    [JSInvokable]
+    public Task OnFullscreenChanged(bool fullscreen) => InvokeAsync(() =>
+    {
+        _fullscreen = fullscreen;
+        StateHasChanged();
+    });
+
+    [JSInvokable]
+    public Task OnScreenAwakeChanged(bool awake) => InvokeAsync(() =>
+    {
+        _screenAwake = awake;
+        StateHasChanged();
+    });
+
+    [JSInvokable]
+    public Task OnEscape() => InvokeAsync(async () =>
+    {
+        if (_cooking)
+        {
+            await ExitCookingModeAsync();
+            StateHasChanged();
+        }
+    });
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_cookingModule is not null)
+        {
+            try
+            {
+                await _cookingModule.InvokeVoidAsync("leave");
+                await _cookingModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        _selfRef?.Dispose();
+    }
+
+    private sealed record CookingModeState(bool FullscreenSupported, bool Fullscreen, bool WakeLockSupported, bool ScreenAwake);
 
     private Task SeekAsync(int seconds) => _player?.SeekAsync(seconds) ?? Task.CompletedTask;
 
