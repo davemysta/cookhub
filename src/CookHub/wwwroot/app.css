@@ -266,6 +266,78 @@ html.cooking-mode-open body {
     text-decoration: line-through;
 }
 
+/* Cooking mode: ingredients are tapped (not ticked) once prepped. */
+.cooking-ingredient-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.cooking-ingredient {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    padding: 8px 4px 8px 8px;
+    border: 0;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cooking-ingredient:last-child {
+    border-bottom: 0;
+}
+
+.cooking-ingredient:hover {
+    background: var(--mud-palette-action-default-hover);
+}
+
+.cooking-ingredient:focus-visible {
+    outline: 2px solid var(--mud-palette-secondary);
+    outline-offset: -2px;
+}
+
+.cooking-ingredient .ingredient-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.cooking-ingredient-check {
+    flex: 0 0 28px;
+    display: flex;
+    justify-content: center;
+}
+
+/* Bigger tap targets for the step numbers and video buttons on tablets. */
+.cooking-steps .step-number {
+    width: 44px;
+    height: 44px;
+    font-size: 1.15rem;
+}
+
+.cooking-steps .step-number-button .mud-icon-root {
+    font-size: 1.6rem;
+}
+
+.cooking-steps .step-text {
+    padding-top: 10px !important;
+}
+
+.cooking-steps .step-video-time {
+    min-height: 44px;
+    font-size: 1rem;
+}
+
+.cooking-steps .step-video-time .mud-button-icon-start .mud-icon-root {
+    font-size: 1.9rem;
+}
+
 /* Phones held upright: stack video, ingredients and steps. */
 @media (max-width: 700px) and (orientation: portrait) {
     .cooking-grid {

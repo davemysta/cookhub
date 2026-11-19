@@ -105,8 +105,12 @@ else
                 @if (_doneSteps.Count > 0)
                 {
                     <MudText Typo="Typo.body2" Class="mud-text-secondary d-none d-sm-flex">@_doneSteps.Count of @_recipe.Steps.Count steps done</MudText>
-                    <MudTooltip Text="Clear the ticked steps">
-                        <MudIconButton Icon="@Icons.Material.Filled.RestartAlt" Size="Size.Small" aria-label="Clear the ticked steps" OnClick="@(() => _doneSteps.Clear())" />
+                }
+                @if (_doneSteps.Count > 0 || _preppedIngredients.Count > 0)
+                {
+                    <MudTooltip Text="Clear the prepped ingredients and ticked steps">
+                        <MudIconButton Icon="@Icons.Material.Filled.RestartAlt" Size="Size.Small" aria-label="Clear the prepped ingredients and ticked steps"
+                                       OnClick="ClearCookingTicks" />
                     </MudTooltip>
                 }
                 @if (_wakeLockSupported)
@@ -167,6 +171,7 @@ else
     private bool _screenAwake;
     private bool _wakeLockSupported;
     private readonly HashSet<int> _doneSteps = [];
+    private readonly HashSet<int> _preppedIngredients = [];
     private IJSObjectReference? _cookingModule;
     private DotNetObjectReference<RecipeDetails>? _selfRef;
 
@@ -176,6 +181,7 @@ else
     {
         _loading = true;
         _doneSteps.Clear();
+        _preppedIngredients.Clear();
         _recipe = await Recipes.GetAsync(Id);
         _video = VideoEmbed.Parse(_recipe?.VideoUrl);
         _ingredients = _recipe?.Ingredients.ToList() ?? [];
@@ -199,10 +205,40 @@ else
     private RenderFragment IngredientsHeader => @<div class="d-flex align-center flex-wrap gap-2">
         <MudText Typo="Typo.h6">Ingredients</MudText>
         <MudSpacer />
-        <MudText Typo="Typo.body2" Class="mud-text-secondary">@_ingredients.Count(i => i.OnHand) of @_ingredients.Count on hand</MudText>
+        @if (_cooking)
+        {
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">@_preppedIngredients.Count of @_ingredients.Count prepped</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="flex-basis: 100%;">Tap an ingredient once it's prepped.</MudText>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">@_ingredients.Count(i => i.OnHand) of @_ingredients.Count on hand</MudText>
+        }
     </div>;
 
-    private RenderFragment IngredientsList => @<MudList T="string" Dense="true" Class="mt-2">
+    // In cooking mode each ingredient is one big tap target that marks it prepped (a green check on the right).
+    private RenderFragment IngredientsList => _cooking ? CookingIngredientsList : OnHandIngredientsList;
+
+    private RenderFragment CookingIngredientsList => @<div class="cooking-ingredient-list">
+        @foreach (var (line, index) in _ingredients.Select((line, index) => (line, index)))
+        {
+            var prepped = _preppedIngredients.Contains(index);
+            <button type="button" class="cooking-ingredient @(prepped ? "prepped" : null)" aria-pressed="@(prepped ? "true" : "false")"
+                    @onclick="@(() => TogglePrepped(index))">
+                <span class="ingredient-text">
+                    @if (!string.IsNullOrEmpty(line.Amount)) { <b>@line.Amount</b>@(" ") }@line.Name@(string.IsNullOrEmpty(line.Preparation) ? "" : $", {line.Preparation}")
+                </span>
+                <span class="cooking-ingredient-check">
+                    @if (prepped)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" aria-label="Prepped" />
+                    }
+                </span>
+            </button>
+        }
+    </div>;
+
+    private RenderFragment OnHandIngredientsList => @<MudList T="string" Dense="true" Class="mt-2">
         @foreach (var line in _ingredients)
         {
             <MudListItem T="string">
@@ -246,7 +282,7 @@ else
                 {
                     var time = StepTime.Format(seconds);
                     <MudTooltip Text="@($"Play the video from {time}")">
-                        <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="step-video-time"
+                        <MudButton Variant="Variant.Text" Color="Color.Primary" Size="@(_cooking ? Size.Large : Size.Small)" Class="step-video-time"
                                    StartIcon="@Icons.Material.Filled.PlayCircle" aria-label="@($"Play step {index + 1} in the video, from {time}")"
                                    OnClick="@(() => SeekAsync(seconds))">@time</MudButton>
                     </MudTooltip>
@@ -254,6 +290,20 @@ else
             </div>
         }
     </div>;
+
+    private void TogglePrepped(int index)
+    {
+        if (!_preppedIngredients.Remove(index))
+        {
+            _preppedIngredients.Add(index);
+        }
+    }
+
+    private void ClearCookingTicks()
+    {
+        _doneSteps.Clear();
+        _preppedIngredients.Clear();
+    }
 
     private void ToggleStepDone(int index)
     {
