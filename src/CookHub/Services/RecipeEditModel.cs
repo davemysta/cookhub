@@ -31,6 +31,9 @@ public sealed class RecipeEditModel
     public sealed class StepRow
     {
         public string Instruction { get; set; } = "";
+
+        // Where the step starts in the video, as mm:ss. Optional.
+        public string? VideoTime { get; set; }
     }
 
     // Rows the user left completely blank are ignored rather than treated as errors.
@@ -104,6 +107,11 @@ public sealed class RecipeEditModel
             if (steps[i].Instruction.Trim().Length > RecipeStep.InstructionMaxLength)
             {
                 errors.Add($"Step {i + 1}: can be at most {RecipeStep.InstructionMaxLength} characters.");
+            }
+
+            if (!StepTime.IsValid(steps[i].VideoTime))
+            {
+                errors.Add($"Step {i + 1}: the video time must be minutes and seconds, like {StepTime.Placeholder} or 12:30.");
             }
         }
 

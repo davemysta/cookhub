@@ -45,4 +45,14 @@ public class VideoEmbedTests
     {
         Assert.Null(VideoEmbed.Parse(url));
     }
+
+    [Theory]
+    [InlineData("https://youtu.be/dQw4w9WgXcQ", "https://www.youtube.com/embed/dQw4w9WgXcQ?enablejsapi=1")]
+    [InlineData("https://youtu.be/dQw4w9WgXcQ?t=90", "https://www.youtube.com/embed/dQw4w9WgXcQ?start=90&enablejsapi=1")]
+    [InlineData("https://vimeo.com/76979871", "https://player.vimeo.com/video/76979871")]
+    [InlineData("https://example.com/videos/tacos.mp4", "https://example.com/videos/tacos.mp4")]
+    public void ControllableSrc_turns_on_the_YouTube_player_api(string url, string expected)
+    {
+        Assert.Equal(expected, VideoEmbed.Parse(url)!.ControllableSrc);
+    }
 }

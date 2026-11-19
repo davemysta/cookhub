@@ -20,6 +20,14 @@ public sealed partial record VideoEmbed(VideoEmbedKind Kind, string Src)
 
     private static readonly string[] FileExtensions = [".mp4", ".m4v", ".webm", ".ogv", ".ogg"];
 
+    private const string YouTubeEmbedPrefix = "https://www.youtube.com/embed/";
+
+    // The src to put in the page, with the player's API turned on so a step can jump to a time.
+    // Vimeo players accept API messages without asking; YouTube players need enablejsapi=1.
+    public string ControllableSrc => Src.StartsWith(YouTubeEmbedPrefix, StringComparison.Ordinal)
+        ? Src + (Src.Contains('?') ? "&" : "?") + "enablejsapi=1"
+        : Src;
+
     public static VideoEmbed? Parse(string? url)
     {
         if (string.IsNullOrWhiteSpace(url)
@@ -66,7 +74,7 @@ public sealed partial record VideoEmbed(VideoEmbedKind Kind, string Src)
             return null;
         }
 
-        var src = $"https://www.youtube.com/embed/{id}";
+        var src = $"{YouTubeEmbedPrefix}{id}";
         var start = ParseSeconds(query.GetValueOrDefault("t") ?? query.GetValueOrDefault("start"));
         return new VideoEmbed(VideoEmbedKind.Player, start > 0 ? $"{src}?start={start}" : src);
     }

@@ -143,7 +143,7 @@ public sealed class RecipeService(IDbContextFactory<ApplicationDbContext> dbFact
                 .OrderBy(i => i.SortOrder)
                 .Select(i => new RecipeIngredientLine(i.IngredientId, i.Ingredient!.Name, i.Amount, i.Preparation, onHand.Contains(i.IngredientId)))
                 .ToList(),
-            recipe.Steps.OrderBy(s => s.StepNumber).Select(s => s.Instruction).ToList(),
+            recipe.Steps.OrderBy(s => s.StepNumber).Select(s => new RecipeStepLine(s.Instruction, s.VideoSeconds)).ToList(),
             people
                 .Select(p => new LikedByEntry(p, p.IsMe ? recipe.LikedByOwner : likedMemberIds.Contains(p.FamilyMemberId!.Value)))
                 .ToList(),
@@ -174,7 +174,9 @@ public sealed class RecipeService(IDbContextFactory<ApplicationDbContext> dbFact
                     Preparation = i.Preparation,
                 })
                 .ToList(),
-            Steps = details.Steps.Select(s => new RecipeEditModel.StepRow { Instruction = s }).ToList(),
+            Steps = details.Steps
+                .Select(s => new RecipeEditModel.StepRow { Instruction = s.Instruction, VideoTime = StepTime.Format(s.VideoSeconds) })
+                .ToList(),
             LikedBy = details.LikedBy.Where(l => l.Liked).Select(l => l.Person.FamilyMemberId).ToHashSet(),
             ExistingImageUrl = details.ImageUrl == ImageUrls.Placeholder ? null : details.ImageUrl,
         };
@@ -230,7 +232,12 @@ public sealed class RecipeService(IDbContextFactory<ApplicationDbContext> dbFact
 
         db.RecipeSteps.RemoveRange(recipe.Steps);
         recipe.Steps = model.FilledSteps
-            .Select((row, index) => new RecipeStep { StepNumber = index + 1, Instruction = row.Instruction.Trim() })
+            .Select((row, index) => new RecipeStep
+            {
+                StepNumber = index + 1,
+                Instruction = row.Instruction.Trim(),
+                VideoSeconds = StepTime.Parse(row.VideoTime),
+            })
             .ToList();
 
         var tagIds = model.Tags.Select(t => t.Id).Distinct().ToList();
