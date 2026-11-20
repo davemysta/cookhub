@@ -56,6 +56,8 @@
 @code {
     private IEnumerable<IdentityError>? identityErrors;
 
+    private static bool RegistrationIsEnabled => FeatureFlags.RegistrationIsEnabled;
+
     [SupplyParameterFromForm]
     private InputModel Input { get; set; } = default!;
 
@@ -68,6 +70,12 @@
 
     public async Task RegisterUser(EditContext editContext)
     {
+        // Program.cs already answers 404 for this page while registration is off; this is a second check.
+        if (!RegistrationIsEnabled)
+        {
+            return;
+        }
+
         var user = new ApplicationUser { DisplayName = Input.DisplayName.Trim() };
 
         await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);

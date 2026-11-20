@@ -1,4 +1,6 @@
 @page "/not-found"
+@* Anyone can see this page; otherwise the 404 for a logged-out visitor fails with a 500. *@
+@attribute [AllowAnonymous]
 @layout Layout.MainLayout
 
 <PageTitle>Not found · CookHub</PageTitle>

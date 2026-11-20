@@ -43,6 +43,7 @@ public sealed class TestDb : IDbContextFactory<ApplicationDbContext>, IDisposabl
         public FamilyService Family { get; } = new(db, user);
         public PantryService Pantry { get; } = new(db, user);
         public MealPlanService MealPlans { get; } = new(db, user);
+        public ShoppingListService ShoppingList { get; } = new(db, user);
 
         // Creates a recipe whose ingredients and tags are looked up (or added) by name.
         public async Task<int> AddRecipeAsync(string title, string[] ingredients, string[]? tags = null, IEnumerable<int?>? likedBy = null)

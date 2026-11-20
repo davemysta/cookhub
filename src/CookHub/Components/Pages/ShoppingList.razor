@@ -1,6 +1,8 @@
 @page "/shopping-list"
+@using CookHub.Data.Entities
 @inject MealPlanService MealPlans
 @inject PantryService Pantry
+@inject ShoppingListService MiscItems
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
@@ -18,7 +20,7 @@
     <MudSwitch T="bool" @bind-Value="_groupByRecipe" Color="Color.Primary" Label="Group by recipe" />
     <MudSwitch T="bool" @bind-Value="_showOnHand" Color="Color.Primary" Label="Show ingredients I have" />
     <MudSpacer />
-    @if (_lines is not null)
+    @if (_lines is not null && _misc is not null)
     {
         <MudText Typo="Typo.body2" Class="mud-text-secondary">
             @ToBuyCount to buy · @OnHandCount on hand
@@ -26,15 +28,15 @@
     }
 </MudPaper>
 
-@if (_lines is null)
+@if (_lines is null || _misc is null)
 {
     <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
 }
 else if (_lines.Count == 0)
 {
-    <MudPaper Outlined="true" Class="pa-8 d-flex flex-column align-center gap-2">
+    <MudPaper Outlined="true" Class="pa-8 mb-3 d-flex flex-column align-center gap-2">
         <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Large" Color="Color.Secondary" />
-        <MudText>No recipes are planned for this week, so there's nothing to buy.</MudText>
+        <MudText>No recipes are planned for this week, so nothing from recipes is on the list.</MudText>
         <MudButton Href="@WeekQuery.Url("meal-plan", _weekStart)" Variant="Variant.Filled" Color="Color.Primary">Plan this week</MudButton>
     </MudPaper>
 }
@@ -88,6 +90,37 @@ else
     }
 }
 
+@if (_misc is not null)
+{
+    <MudPaper Outlined="true" Class="pa-3 mt-3">
+        <div class="d-flex align-center gap-2 mb-1">
+            <MudText Typo="Typo.h6">Misc</MudText>
+            <MudSpacer />
+            @if (_misc.Any(i => i.Done))
+            {
+                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearDoneMiscAsync">Clear ticked</MudButton>
+            }
+        </div>
+        @foreach (var item in _misc)
+        {
+            <ShoppingItem @key="item.Id" Name="@item.Name" OnHand="item.Done" OnHandChanged="@(done => SetMiscDoneAsync(item, done))">
+                <ChildContent>@item.Name</ChildContent>
+                <Actions>
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="@($"Remove {item.Name}")"
+                                   OnClick="@(() => RemoveMiscAsync(item))" />
+                </Actions>
+            </ShoppingItem>
+        }
+        <div class="d-flex align-center gap-2 mt-2">
+            <MudTextField @bind-Value="_newMiscName" Immediate="true" OnKeyUp="MiscKeyUpAsync" Placeholder="Add an item, e.g. paper towels"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="ShoppingListItem.NameMaxLength"
+                          aria-label="Add an item to the shopping list" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                       Disabled="string.IsNullOrWhiteSpace(_newMiscName)" OnClick="AddMiscAsync">Add</MudButton>
+        </div>
+    </MudPaper>
+}
+
 @code {
     // "2 cups, diced for Tacos", or just "for Tacos" when the recipe gives no amount.
     private static string DescribeUse(ShoppingLine line)
@@ -98,6 +131,9 @@ else
 
     private DateOnly _weekStart = Week.Current;
     private List<ShoppingLine>? _lines;
+    private List<MiscShoppingItem>? _misc;
+    private string? _newMiscName;
+    private bool _adding;
     private bool _groupByRecipe;
     private bool _showOnHand;
 
@@ -106,7 +142,7 @@ else
 
     private IEnumerable<ShoppingLine> VisibleLines => _lines!.Where(l => _showOnHand || !l.OnHand);
 
-    private int ToBuyCount => _lines!.Where(l => !l.OnHand).Select(l => l.IngredientId).Distinct().Count();
+    private int ToBuyCount => _lines!.Where(l => !l.OnHand).Select(l => l.IngredientId).Distinct().Count() + _misc!.Count(i => !i.Done);
 
     private int OnHandCount => _lines!.Where(l => l.OnHand).Select(l => l.IngredientId).Distinct().Count();
 
@@ -114,6 +150,63 @@ else
     {
         _weekStart = WeekQuery.Parse(WeekParameter);
         _lines = (await MealPlans.GetShoppingLinesAsync(_weekStart)).ToList();
+        _misc = (await MiscItems.GetMiscItemsAsync(_weekStart)).ToList();
+    }
+
+    private async Task MiscKeyUpAsync(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or "NumpadEnter")
+        {
+            await AddMiscAsync();
+        }
+    }
+
+    private async Task AddMiscAsync()
+    {
+        if (_adding || string.IsNullOrWhiteSpace(_newMiscName))
+        {
+            return;
+        }
+
+        _adding = true;
+        try
+        {
+            var item = await MiscItems.AddMiscItemAsync(_weekStart, _newMiscName);
+            _misc!.Add(item);
+            _newMiscName = null;
+        }
+        catch (ArgumentException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        finally
+        {
+            _adding = false;
+        }
+    }
+
+    private async Task SetMiscDoneAsync(MiscShoppingItem item, bool done)
+    {
+        await MiscItems.SetMiscItemDoneAsync(item.Id, done);
+        var index = _misc!.FindIndex(i => i.Id == item.Id);
+        if (index >= 0)
+        {
+            _misc[index] = item with { Done = done };
+        }
+    }
+
+    private async Task RemoveMiscAsync(MiscShoppingItem item)
+    {
+        await MiscItems.RemoveMiscItemAsync(item.Id);
+        _misc!.RemoveAll(i => i.Id == item.Id);
+    }
+
+    private async Task ClearDoneMiscAsync()
+    {
+        foreach (var item in _misc!.Where(i => i.Done).ToList())
+        {
+            await RemoveMiscAsync(item);
+        }
     }
 
     private void ChangeWeek(DateOnly weekStart) => Navigation.NavigateTo(WeekQuery.Url("shopping-list", weekStart));

@@ -16,6 +16,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<RecipeFamilyLike> RecipeFamilyLikes => Set<RecipeFamilyLike>();
     public DbSet<IngredientOnHand> IngredientsOnHand => Set<IngredientOnHand>();
     public DbSet<MealPlanEntry> MealPlanEntries => Set<MealPlanEntry>();
+    public DbSet<ShoppingListItem> ShoppingListItems => Set<ShoppingListItem>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -98,6 +99,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             b.HasOne(m => m.Recipe).WithMany(r => r.MealPlanEntries).HasForeignKey(m => m.RecipeId).OnDelete(DeleteBehavior.Cascade);
             b.HasIndex(m => new { m.WeekStart, m.RecipeId });
+        });
+
+        builder.Entity<ShoppingListItem>(b =>
+        {
+            b.Property(i => i.Name).HasMaxLength(ShoppingListItem.NameMaxLength).IsRequired();
+            b.HasOne(i => i.User).WithMany().HasForeignKey(i => i.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(i => new { i.UserId, i.WeekStart });
         });
     }
 }

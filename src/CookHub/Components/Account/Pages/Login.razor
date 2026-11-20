@@ -40,13 +40,19 @@
     </MudGrid>
 </EditForm>
 
-<MudText Class="mt-6" Align="Align.Center">
-    New here?
-    <MudLink Href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Create an account</MudLink>
-</MudText>
+@if (RegistrationIsEnabled)
+{
+    <MudText Class="mt-6" Align="Align.Center">
+        New here?
+        <MudLink Href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Create an account</MudLink>
+    </MudText>
+}
 
 @code {
     private string? errorMessage;
+
+    // Read through a property so the build doesn't warn about unreachable code while the flag is off.
+    private static bool RegistrationIsEnabled => FeatureFlags.RegistrationIsEnabled;
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
@@ -70,9 +76,8 @@
 
     public async Task LoginUser()
     {
-        // This doesn't count login failures towards account lockout
-        // To enable password failures to trigger account lockout, set lockoutOnFailure: true
-        var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: false);
+        // Failed attempts count towards lockout (see the Lockout options in Program.cs), which slows down password guessing.
+        var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: true);
 
         if (result.Succeeded)
         {

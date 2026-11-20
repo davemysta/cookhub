@@ -117,3 +117,6 @@ public sealed record ShoppingLine(
     string? Amount,
     string? Preparation,
     bool OnHand);
+
+// Something added straight to the shopping list (the "Misc" group).
+public sealed record MiscShoppingItem(int Id, string Name, bool Done);

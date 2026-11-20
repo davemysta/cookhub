@@ -133,7 +133,7 @@ public class RecipeServiceTests
             Ingredients = [new() { Amount = "1", Ingredient = new LookupItem(1, "milk") }],
         };
 
-        Assert.Equal(["Step 2: the video time must be minutes and seconds, like 00:00 or 12:30."], model.Validate());
+        Assert.Equal(["Step 2: the video time must be minutes and seconds, like 12:30 or 1230."], model.Validate());
     }
 
     [Fact]
@@ -145,14 +145,14 @@ public class RecipeServiceTests
 
         var model = (await app.Recipes.GetForEditAsync(id))!;
         model.VideoUrl = "https://youtu.be/dQw4w9WgXcQ";
-        model.Steps = [new() { Instruction = "Warm.", VideoTime = "1:05" }, new() { Instruction = "Fill." }];
+        model.Steps = [new() { Instruction = "Warm.", VideoTime = "1:05" }, new() { Instruction = "Fill." }, new() { Instruction = "Fold.", VideoTime = "209" }];
         await app.Recipes.SaveAsync(model);
 
         var steps = (await app.Recipes.GetAsync(id))!.Steps;
-        Assert.Equal([new RecipeStepLine("Warm.", 65), new RecipeStepLine("Fill.", null)], steps);
+        Assert.Equal([new RecipeStepLine("Warm.", 65), new RecipeStepLine("Fill.", null), new RecipeStepLine("Fold.", 129)], steps);
 
         model = (await app.Recipes.GetForEditAsync(id))!;
-        Assert.Equal(["01:05", null], model.Steps.Select(s => s.VideoTime));
+        Assert.Equal(["01:05", null, "02:09"], model.Steps.Select(s => s.VideoTime));
     }
 
     [Fact]
