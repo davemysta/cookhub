@@ -3,6 +3,11 @@
     <div class="@(OnHand ? "on-hand-text" : null)">
         @ChildContent
     </div>
+    @if (Actions is not null)
+    {
+        <MudSpacer />
+        @Actions
+    }
 </div>
 
 @code {
@@ -10,4 +15,5 @@
     [Parameter] public bool OnHand { get; set; }
     [Parameter] public EventCallback<bool> OnHandChanged { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
 }

@@ -115,7 +115,8 @@ else
             <MudPaper Outlined="true" Class="pa-4">
                 <MudText Typo="Typo.h6">Steps</MudText>
                 <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mb-3">
-                    Video time is optional: where the step starts in the recipe's video, in minutes and seconds (e.g. <i>02:15</i>).
+                    Video time is optional: where the step starts in the recipe's video, in minutes and seconds.
+                    Type just the digits if you like: <i>13</i> is 00:13, <i>209</i> is 02:09 and <i>1423</i> is 14:23.
                     On the recipe page, a play button by the step jumps the video there.
                 </MudText>
                 @for (var i = 0; i < _model.Steps.Count; i++)
@@ -127,11 +128,12 @@ else
                         <div class="step-edit-fields">
                             <MudTextField @bind-Value="step.Instruction" Label="@($"Step {index + 1}")" Lines="2" Sizing="InputSizing.Auto"
                                           MaxLength="RecipeStep.InstructionMaxLength" Variant="Variant.Outlined" Class="step-instruction-input" />
-                            <MudTextField @bind-Value="step.VideoTime" Label="Video time" Placeholder="@StepTime.Placeholder" MaxLength="6"
-                                          Variant="Variant.Outlined" Immediate="true" DebounceInterval="300" Class="step-time-input"
+                            <MudTextField T="string" Value="step.VideoTime" ValueChanged="@(value => step.VideoTime = StepTime.Normalize(value))"
+                                          Label="Video time" Placeholder="@StepTime.Placeholder" MaxLength="6"
+                                          Variant="Variant.Outlined" Class="step-time-input"
                                           Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.PlayCircle"
-                                          aria-label="@($"Step {index + 1} video time, minutes and seconds")"
-                                          Error="@(!StepTime.IsValid(step.VideoTime))" ErrorText="Use mm:ss" />
+                                          aria-label="@($"Step {index + 1} video time, minutes and seconds")" InputMode="InputMode.numeric"
+                                          Error="@(!StepTime.IsValid(step.VideoTime))" ErrorText="Use mm:ss or digits" />
                         </div>
                         <div class="d-flex flex-column">
                             <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" aria-label="Move up" Disabled="index == 0"

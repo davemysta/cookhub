@@ -111,7 +111,7 @@ public sealed class RecipeEditModel
 
             if (!StepTime.IsValid(steps[i].VideoTime))
             {
-                errors.Add($"Step {i + 1}: the video time must be minutes and seconds, like {StepTime.Placeholder} or 12:30.");
+                errors.Add($"Step {i + 1}: the video time must be minutes and seconds, like 12:30 or 1230.");
             }
         }
 

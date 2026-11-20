@@ -19,10 +19,10 @@ Built with ASP.NET Core Blazor Server (.NET 10), MudBlazor 9, EF Core 10 and SQL
 
 ## Features
 
-- **Accounts**: every page requires login. Anyone on the network can register, with no email confirmation, and is signed straight in.
+- **Accounts**: every page requires login. Registration is controlled by `FeatureFlags.RegistrationIsEnabled` in `src/CookHub/FeatureFlags.cs` and is **off** by default: the **Create an account** link is hidden and `/Account/Register` returns 404. Set it to `true` and publish to let people register; they need no email confirmation and are signed straight in. Five wrong passwords in a row lock an account for 15 minutes.
 - **Recipes**: title, description (up to 500 characters), an optional photo (a stock image is used otherwise), an optional video link, ingredients, steps, tags and "Liked by".
   - If a recipe has a video link, the recipe page shows an embedded video player in place of the photo. Recipe cards and the meal plan still use the photo.
-  - Each step can have an optional video time (mm:ss, e.g. `02:15`). When the recipe has a video, the step shows a play button on the recipe page that jumps the video to that time and plays it.
+  - Each step can have an optional video time, as mm:ss (`02:15`) or just digits, where the last two digits are the seconds: `13` is 00:13, `209` is 02:09 and `1423` is 14:23. It's tidied into mm:ss when you leave the field. When the recipe has a video, the step shows a play button on the recipe page that jumps the video to that time and plays it.
   - **Cooking Mode** (on the recipe page) fills the screen with the video top left, ingredients bottom left and steps down the right, each scrolling on its own, with no navigation. It goes full screen and keeps the screen from turning off where the browser allows it (keeping the screen on needs https or localhost). Tap an ingredient once it's prepped to put a green check by it, and tap a step's number to tick it off; Esc or **Exit** leaves.
   - Each ingredient line is an *ingredient* with an optional *amount* and optional *preparation*, e.g. `1 cup` · `carrot` · `diced`, or just `salt`.
   - Ingredients and tags are looked up by name. If a name doesn't exist yet, the autocomplete offers **Add "…"**, which saves it so it can be picked next time.
@@ -32,7 +32,7 @@ Built with ASP.NET Core Blazor Server (.NET 10), MudBlazor 9, EF Core 10 and SQL
 - **Family**: add, rename and remove family members.
 - **On hand**: tick ingredients on a recipe or the shopping list, or add them directly. Remove anything you've run out of.
 - **Meal plan**: weeks run Monday to Sunday. Add recipes to any week, optionally on a specific day.
-- **Shopping list**: everything the week's recipes need that isn't on hand. Tick items as you get them. You can group by recipe and show the items you already have.
+- **Shopping list**: everything the week's recipes need that isn't on hand. Tick items as you get them. You can group by recipe and show the items you already have. Anything else you need that week (paper towels, say) can be added under **Misc**, ticked off and removed.
 - **Home**: this week at a glance, plus suggestions: recipes you mostly have the ingredients for that aren't planned yet.
 
 ## Running it locally
@@ -71,7 +71,7 @@ dotnet tool restore
 dotnet ef database update --project src/CookHub
 ```
 
-Then browse to the URL it prints, choose **Create an account** and start adding recipes.
+Then browse to the URL it prints and start adding recipes. To create the first account, set `RegistrationIsEnabled` to `true` in `src/CookHub/FeatureFlags.cs`, choose **Create an account**, and set it back to `false` once everyone has an account.
 
 ## Adding a recipe from JSON
 
@@ -296,11 +296,11 @@ If the Ubuntu firewall is on, allow the port:
 sudo ufw allow 5000/tcp
 ```
 
-Find the server's address with `hostname -I`, then browse to `http://<server-ip>:5000` from any device on your network, choose **Create an account**, and you're in.
+Find the server's address with `hostname -I`, then browse to `http://<server-ip>:5000` from any device on your network and log in. Registration is off by default; see [Accounts](#features) for how to turn it on to create accounts.
 
 Things to know:
 
-- **HTTPS.** Plain HTTP is fine on a trusted home network. Don't forward the port to the internet; anyone who can reach the app can register. If you want HTTPS or a friendly name, put a reverse proxy such as Caddy or nginx in front of it.
+- **HTTPS.** Plain HTTP is fine on a trusted home network. If the app is reachable from the internet, put a reverse proxy such as Caddy or nginx in front of it on the same machine to provide HTTPS, have CookHub listen only on `http://127.0.0.1:5000`, and only open ports 80 and 443. The app trusts `X-Forwarded-For` and `X-Forwarded-Proto` from a proxy on the same machine, so it sees the real client address (used to rate-limit log-in attempts) and knows the request was HTTPS.
 - **Backups.** Photos are stored in the database (table `RecipeImages`), so backing up the database backs up everything:
 
   ```bash
@@ -376,7 +376,7 @@ Where the requirements left room for interpretation:
 - **Tag filter**: when several tags are selected, a recipe must have *all* of them.
 - **"Liked by" filter**: *Anyone* (no filter), *Everyone* (liked by you and every family member), *you*, or one family member.
 - **"Most ingredients on hand"** ranks by the number of a recipe's ingredients you have. Ties go to the recipe with fewer left to buy.
-- **Shopping list**: there's no separate list to maintain. It's worked out from the week's meal plan minus your on-hand ingredients, so ticking an item adds it to On hand. Amounts aren't totalled across recipes; each recipe's amount is listed, because free-text units like "1 cup" and "2 large" can't be added reliably.
+- **Shopping list**: there's no separate list to maintain. It's worked out from the week's meal plan minus your on-hand ingredients, so ticking an item adds it to On hand. **Misc** items are the exception: they're free text, belong to that week only, and ticking one just crosses it off (it doesn't touch On hand). Amounts aren't totalled across recipes; each recipe's amount is listed, because free-text units like "1 cup" and "2 large" can't be added reliably.
 - **Ingredient amounts are optional**, for things like salt and pepper. A blank amount is stored as no amount.
 - **Ingredient and tag names** are matched ignoring case and extra spaces. Tags are stored in lower case.
 - **Convert from JSON** fills in the form but doesn't save, so you can check it first. New ingredient and tag names it finds are added to the shared catalog straight away, even if you then don't save the recipe.
