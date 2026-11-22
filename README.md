@@ -31,7 +31,7 @@ Built with ASP.NET Core Blazor Server (.NET 10), MudBlazor 9, EF Core 10 and SQL
 - **Recipe list**: card or list view, search (title, description, tag or ingredient), filters for tags and "Liked by", sorting by title, newest or **most ingredients on hand**, and 50 recipes per page.
 - **Family**: add, rename and remove family members.
 - **On hand**: tick ingredients on a recipe or the shopping list, or add them directly. Remove anything you've run out of.
-- **Meal plan**: weeks run Monday to Sunday. Add recipes to any week, optionally on a specific day.
+- **Meal plan**: weeks run Monday to Sunday. Add recipes to any week, optionally on a specific day and meal (breakfast, lunch or dinner). Switch between a **List** view and a **Table** view: a column per day (with its date) and a row per meal. Each cell holds any number of recipes; use **+** in a cell to add one, drag a recipe to another cell to move it, or drag it to **Not scheduled**.
 - **Shopping list**: everything the week's recipes need that isn't on hand. Tick items as you get them. You can group by recipe and show the items you already have. Anything else you need that week (paper towels, say) can be added under **Misc**, ticked off and removed.
 - **Home**: this week at a glance, plus suggestions: recipes you mostly have the ingredients for that aren't planned yet.
 

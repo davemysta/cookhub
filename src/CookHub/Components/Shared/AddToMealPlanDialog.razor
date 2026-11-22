@@ -1,3 +1,4 @@
+@using CookHub.Data.Entities
 @inject MealPlanService MealPlans
 @inject ISnackbar Snackbar
 
@@ -20,6 +21,13 @@
                 <MudSelectItem Value="@((DayOfWeek?)day)">@day</MudSelectItem>
             }
         </MudSelect>
+        <MudSelect T="Meal?" @bind-Value="_meal" Label="Meal (optional)" Variant="Variant.Outlined" Class="mt-4">
+            <MudSelectItem Value="@((Meal?)null)">Any meal</MudSelectItem>
+            @foreach (var meal in Meals.All)
+            {
+                <MudSelectItem Value="@((Meal?)meal)">@meal</MudSelectItem>
+            }
+        </MudSelect>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
@@ -31,6 +39,7 @@
     private readonly List<DateOnly> _weeks = Enumerable.Range(0, 6).Select(i => Week.Current.AddDays(7 * i)).ToList();
     private DateOnly _weekStart;
     private DayOfWeek? _day;
+    private Meal? _meal;
     private bool _saving;
 
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
@@ -64,7 +73,7 @@
         _saving = true;
         try
         {
-            await MealPlans.AddAsync(RecipeId, _weekStart, _day);
+            await MealPlans.AddAsync(RecipeId, _weekStart, _day, _meal);
             Snackbar.Add($"Added {RecipeTitle} to the meal plan for {Week.Label(_weekStart)}.", Severity.Success);
             MudDialog.Close(DialogResult.Ok(_weekStart));
         }

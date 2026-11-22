@@ -22,6 +22,7 @@ public sealed class MealPlanService(IDbContextFactory<ApplicationDbContext> dbFa
                 m.Recipe.UpdatedUtc,
                 HasImage = m.Recipe.Image != null,
                 m.Day,
+                m.Meal,
                 m.AddedUtc,
                 Total = m.Recipe.Ingredients.Count,
                 OnHand = m.Recipe.Ingredients.Count(i => db.IngredientsOnHand.Any(o => o.UserId == userId && o.IngredientId == i.IngredientId)),
@@ -30,12 +31,13 @@ public sealed class MealPlanService(IDbContextFactory<ApplicationDbContext> dbFa
 
         return rows
             .OrderBy(r => Week.DayIndex(r.Day))
+            .ThenBy(r => Meals.Index(r.Meal))
             .ThenBy(r => r.AddedUtc)
-            .Select(r => new MealPlanItem(r.Id, r.RecipeId, r.Title, ImageUrls.ForRecipe(r.RecipeId, r.HasImage, r.UpdatedUtc), r.Day, r.Total, r.OnHand))
+            .Select(r => new MealPlanItem(r.Id, r.RecipeId, r.Title, ImageUrls.ForRecipe(r.RecipeId, r.HasImage, r.UpdatedUtc), r.Day, r.Meal, r.Total, r.OnHand))
             .ToList();
     }
 
-    public async Task AddAsync(int recipeId, DateOnly weekStart, DayOfWeek? day = null)
+    public async Task AddAsync(int recipeId, DateOnly weekStart, DayOfWeek? day = null, Meal? meal = null)
     {
         var userId = await currentUser.GetUserIdAsync();
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -49,6 +51,7 @@ public sealed class MealPlanService(IDbContextFactory<ApplicationDbContext> dbFa
             RecipeId = recipeId,
             WeekStart = Week.StartOf(weekStart),
             Day = day,
+            Meal = meal,
             AddedUtc = DateTime.UtcNow,
         });
         await db.SaveChangesAsync();
@@ -61,6 +64,25 @@ public sealed class MealPlanService(IDbContextFactory<ApplicationDbContext> dbFa
         await db.MealPlanEntries
             .Where(m => m.Id == entryId && m.Recipe!.OwnerId == userId)
             .ExecuteUpdateAsync(s => s.SetProperty(m => m.Day, day));
+    }
+
+    public async Task SetMealAsync(int entryId, Meal? meal)
+    {
+        var userId = await currentUser.GetUserIdAsync();
+        await using var db = await dbFactory.CreateDbContextAsync();
+        await db.MealPlanEntries
+            .Where(m => m.Id == entryId && m.Recipe!.OwnerId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(m => m.Meal, meal));
+    }
+
+    // Moves an entry to a day and meal at once, e.g. when it's dragged to another cell of the table.
+    public async Task MoveAsync(int entryId, DayOfWeek? day, Meal? meal)
+    {
+        var userId = await currentUser.GetUserIdAsync();
+        await using var db = await dbFactory.CreateDbContextAsync();
+        await db.MealPlanEntries
+            .Where(m => m.Id == entryId && m.Recipe!.OwnerId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(m => m.Day, day).SetProperty(m => m.Meal, meal));
     }
 
     public async Task RemoveAsync(int entryId)

@@ -1,3 +1,5 @@
+using CookHub.Data.Entities;
+
 namespace CookHub.Services;
 
 public sealed record LookupItem(int Id, string Name);
@@ -101,10 +103,14 @@ public sealed record MealPlanItem(
     string Title,
     string ImageUrl,
     DayOfWeek? Day,
+    Meal? Meal,
     int IngredientCount,
     int OnHandCount)
 {
     public int MissingCount => IngredientCount - OnHandCount;
+
+    // True when it has both a day and a meal, so it sits in a cell of the table view.
+    public bool IsScheduled => Day is not null && Meal is not null;
 }
 
 public sealed record ShoppingLine(

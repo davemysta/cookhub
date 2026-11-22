@@ -354,3 +354,130 @@ html.cooking-mode-open body {
         height: calc((100% - var(--cook-bar) - 4 * var(--cook-gap)) * 0.3);
     }
 }
+
+/* Meal plan table view: a column per day, a row per meal. Scrolls sideways on narrow screens. */
+.meal-table-wrapper {
+    overflow-x: auto;
+}
+
+.meal-table {
+    width: 100%;
+    min-width: 56rem;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.meal-table th,
+.meal-table td {
+    border: 1px solid var(--mud-palette-lines-default);
+    vertical-align: top;
+    padding: 6px;
+}
+
+.meal-table thead th {
+    text-align: center;
+    background: var(--mud-palette-background-gray);
+}
+
+.meal-table-corner {
+    width: 6.5rem;
+}
+
+/* Keep the meal names in view while the days scroll sideways. */
+.meal-table-corner,
+.meal-table-meal {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--mud-palette-surface);
+}
+
+.meal-table thead .meal-table-corner {
+    background: var(--mud-palette-background-gray);
+}
+
+.meal-table-day {
+    font-weight: 500;
+}
+
+.meal-table-date {
+    font-size: 0.8125rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.meal-table-meal {
+    text-align: left;
+    font-weight: 500;
+    vertical-align: middle !important;
+}
+
+.meal-table .meal-table-today {
+    background: var(--mud-palette-primary-hover);
+}
+
+.meal-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    min-height: 5.5rem;
+    height: 100%;
+}
+
+.meal-cell-zone {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 2.5rem;
+    border-radius: 4px;
+}
+
+.meal-cell-add {
+    align-self: center;
+    opacity: 0.6;
+}
+
+.meal-cell-add:hover,
+.meal-cell-add:focus-visible {
+    opacity: 1;
+}
+
+.meal-cell-can-drop {
+    outline: 2px dashed var(--mud-palette-primary);
+    outline-offset: -2px;
+}
+
+.meal-unscheduled-zone {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 2.5rem;
+    border-radius: 4px;
+}
+
+.meal-chip.mud-chip {
+    margin: 0;
+    max-width: 100%;
+    height: auto;
+    min-height: 24px;
+    cursor: grab;
+}
+
+.meal-chip .mud-chip-content {
+    white-space: normal;
+    text-align: left;
+    line-height: 1.25;
+    padding: 2px 0;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

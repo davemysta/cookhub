@@ -1,0 +1,125 @@
+@using CookHub.Data.Entities
+@inject NavigationManager Navigation
+
+@* The week as a grid: a column per day and a row per meal. Recipes can be dragged between cells. *@
+
+<MudDropContainer T="MealPlanItem" @ref="_container" Items="Items" ItemsSelector="IsInZone" ItemDropped="OnDroppedAsync"
+                  CanDropClass="meal-cell-can-drop" ApplyDropClassesOnDragStarted="true">
+    <ChildContent>
+        <MudPaper Outlined="true" Class="meal-table-wrapper">
+            <table class="meal-table">
+                <thead>
+                    <tr>
+                        <th class="meal-table-corner" scope="col"><span class="sr-only">Meal</span></th>
+                        @foreach (var day in Week.Days)
+                        {
+                            var date = DateOf(day);
+                            <th scope="col" class="@(date == Today ? "meal-table-today" : null)">
+                                <div class="meal-table-day">@date.ToString("dddd")</div>
+                                <div class="meal-table-date">@date.ToString("MMM d")</div>
+                            </th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var meal in Meals.All)
+                    {
+                        <tr>
+                            <th scope="row" class="meal-table-meal">@meal</th>
+                            @foreach (var day in Week.Days)
+                            {
+                                var date = DateOf(day);
+                                <td class="@(date == Today ? "meal-table-today" : null)">
+                                    <div class="meal-cell">
+                                        <MudDropZone T="MealPlanItem" Identifier="@ZoneId(day, meal)" Class="meal-cell-zone" ItemRenderer="RenderItem" />
+                                        <MudTooltip Text="@($"Add a recipe for {meal.ToString().ToLowerInvariant()} on {date:dddd}")">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Class="meal-cell-add"
+                                                           aria-label="@($"Add a recipe for {meal} on {date:dddd MMM d}")"
+                                                           OnClick="@(() => OnAdd.InvokeAsync((day, meal)))" />
+                                        </MudTooltip>
+                                    </div>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </MudPaper>
+
+        @* Recipes without both a day and a meal have no cell; drag them into one to schedule them. *@
+        <MudPaper Outlined="true" Class="pa-3 mt-4">
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Not scheduled</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">
+                Recipes planned for this week without a day and meal. Drag one into the table, or set its day and meal in the list view.
+            </MudText>
+            <MudDropZone T="MealPlanItem" Identifier="@UnscheduledZone" Class="meal-unscheduled-zone" ItemRenderer="RenderItem" />
+        </MudPaper>
+    </ChildContent>
+</MudDropContainer>
+
+@code {
+    private const string UnscheduledZone = "unscheduled";
+
+    private MudDropContainer<MealPlanItem>? _container;
+
+    [Parameter, EditorRequired] public DateOnly WeekStart { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<MealPlanItem> Items { get; set; } = [];
+
+    // Asks the page to add a recipe to a cell.
+    [Parameter] public EventCallback<(DayOfWeek Day, Meal Meal)> OnAdd { get; set; }
+
+    // A recipe was dragged to a cell (day and meal) or back to "Not scheduled" (both null).
+    [Parameter] public EventCallback<(MealPlanItem Item, DayOfWeek? Day, Meal? Meal)> OnMove { get; set; }
+
+    [Parameter] public EventCallback<MealPlanItem> OnRemove { get; set; }
+
+    private static DateOnly Today => DateOnly.FromDateTime(DateTime.Now);
+
+    private DateOnly DateOf(DayOfWeek day) => WeekStart.AddDays(Week.DayIndex(day));
+
+    private static string ZoneId(DayOfWeek day, Meal meal) => $"{day}:{meal}";
+
+    private static string ZoneOf(MealPlanItem item) => item.IsScheduled ? ZoneId(item.Day!.Value, item.Meal!.Value) : UnscheduledZone;
+
+    private static bool IsInZone(MealPlanItem item, string zone) => ZoneOf(item) == zone;
+
+    protected override void OnParametersSet() => _container?.Refresh();
+
+    private async Task OnDroppedAsync(MudItemDropInfo<MealPlanItem> drop)
+    {
+        if (drop.Item is null || drop.DropzoneIdentifier == ZoneOf(drop.Item))
+        {
+            return;
+        }
+
+        if (drop.DropzoneIdentifier == UnscheduledZone)
+        {
+            await OnMove.InvokeAsync((drop.Item, null, null));
+            return;
+        }
+
+        var parts = drop.DropzoneIdentifier.Split(':');
+        if (parts.Length == 2 && Enum.TryParse<DayOfWeek>(parts[0], out var day) && Enum.TryParse<Meal>(parts[1], out var meal))
+        {
+            await OnMove.InvokeAsync((drop.Item, day, meal));
+        }
+    }
+
+    private RenderFragment<MealPlanItem> RenderItem => item => __builder =>
+    {
+        <MudTooltip Text="@ChipTooltip(item)" Delay="600">
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="meal-chip"
+                     OnClick="@(() => Navigation.NavigateTo($"recipes/{item.RecipeId}"))"
+                     OnClose="@(_ => OnRemove.InvokeAsync(item))">
+                @item.Title
+            </MudChip>
+        </MudTooltip>
+    };
+
+    private static string ChipTooltip(MealPlanItem item)
+    {
+        var note = item.MissingCount == 0 ? "everything on hand" : $"{item.MissingCount} of {item.IngredientCount} ingredients to buy";
+        var when = item.IsScheduled ? "" : item.Day is not null ? $" · {item.Day}" : item.Meal is not null ? $" · {item.Meal}" : "";
+        return $"{item.Title}{when} · {note}";
+    }
+}
