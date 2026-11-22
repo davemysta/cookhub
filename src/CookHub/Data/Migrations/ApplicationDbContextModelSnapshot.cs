@@ -175,6 +175,9 @@ namespace CookHub.Data.Migrations
                     b.Property<int?>("Day")
                         .HasColumnType("int");
 
+                    b.Property<int?>("Meal")
+                        .HasColumnType("int");
+
                     b.Property<int>("RecipeId")
                         .HasColumnType("int");
 

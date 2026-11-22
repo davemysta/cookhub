@@ -1,3 +1,4 @@
+using CookHub.Data.Entities;
 using CookHub.Services;
 
 namespace CookHub.Tests;
@@ -24,6 +25,52 @@ public class MealPlanServiceTests
 
         Assert.Equal(["Rice", "Soup", "Tacos"], week.Select(w => w.Title));
         Assert.Empty(await app.MealPlans.GetWeekAsync(Monday.AddDays(7)));
+    }
+
+    [Fact]
+    public async Task Entries_on_the_same_day_are_sorted_by_meal_and_can_be_moved_to_another_cell()
+    {
+        using var db = new TestDb();
+        var app = db.As(db.AddUser("Dave"));
+        var pancakes = await app.AddRecipeAsync("Pancakes", ["flour"]);
+        var tacos = await app.AddRecipeAsync("Tacos", ["tortillas"]);
+        var salad = await app.AddRecipeAsync("Salad", ["lettuce"]);
+        var soup = await app.AddRecipeAsync("Soup", ["carrot"]);
+
+        await app.MealPlans.AddAsync(tacos, Monday, DayOfWeek.Tuesday, Meal.Dinner);
+        await app.MealPlans.AddAsync(soup, Monday, DayOfWeek.Tuesday);
+        await app.MealPlans.AddAsync(salad, Monday, DayOfWeek.Tuesday, Meal.Lunch);
+        await app.MealPlans.AddAsync(pancakes, Monday, DayOfWeek.Tuesday, Meal.Breakfast);
+
+        var week = await app.MealPlans.GetWeekAsync(Monday);
+        Assert.Equal(["Pancakes", "Salad", "Tacos", "Soup"], week.Select(w => w.Title));
+        Assert.False(week.Single(w => w.Title == "Soup").IsScheduled);
+
+        // Two recipes can share a cell.
+        var soupEntry = week.Single(w => w.Title == "Soup");
+        await app.MealPlans.MoveAsync(soupEntry.EntryId, DayOfWeek.Tuesday, Meal.Dinner);
+        await app.MealPlans.SetMealAsync(week.Single(w => w.Title == "Pancakes").EntryId, null);
+
+        week = await app.MealPlans.GetWeekAsync(Monday);
+        Assert.Equal([DayOfWeek.Tuesday, DayOfWeek.Tuesday], week.Where(w => w.Meal == Meal.Dinner).Select(w => w.Day));
+        Assert.Null(week.Single(w => w.Title == "Pancakes").Meal);
+    }
+
+    [Fact]
+    public async Task Entries_of_another_user_cannot_be_moved()
+    {
+        using var db = new TestDb();
+        var dave = db.As(db.AddUser("Dave"));
+        var eve = db.As(db.AddUser("Eve"));
+        await dave.MealPlans.AddAsync(await dave.AddRecipeAsync("Tacos", ["tortillas"]), Monday);
+        var entry = (await dave.MealPlans.GetWeekAsync(Monday)).Single();
+
+        await eve.MealPlans.MoveAsync(entry.EntryId, DayOfWeek.Friday, Meal.Dinner);
+        await eve.MealPlans.SetMealAsync(entry.EntryId, Meal.Lunch);
+
+        var after = (await dave.MealPlans.GetWeekAsync(Monday)).Single();
+        Assert.Null(after.Day);
+        Assert.Null(after.Meal);
     }
 
     [Fact]

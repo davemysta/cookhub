@@ -14,5 +14,8 @@ public class MealPlanEntry
     // Optional day within the week; null means "sometime this week".
     public DayOfWeek? Day { get; set; }
 
+    // Optional meal of the day; null means "any meal".
+    public Meal? Meal { get; set; }
+
     public DateTime AddedUtc { get; set; }
 }
